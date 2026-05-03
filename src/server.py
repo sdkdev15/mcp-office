@@ -72,7 +72,7 @@ TOOLS = [
                 "filename": {"type": "string", "description": "Output filename (e.g., 'report.xlsx')"},
                 "sheets": {
                     "type": "array",
-                    "description": "List of sheet objects with 'name', 'headers', and 'rows'",
+                    "description": "List of sheet objects. Each sheet should have 'name' (string), 'headers' (array of strings), and 'rows' (array of arrays).",
                     "items": {"type": "object"},
                 },
                 "theme": {"type": "string", "description": "Theme name (corporate, minimal, creative, academic, dark)", "default": "corporate"},
@@ -90,7 +90,17 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "sheets": {"type": "array", "items": {"type": "object"}},
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "headers": {"type": "array", "items": {"type": "string"}},
+                            "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+                        },
+                    },
+                },
                 "format": {"type": "string", "description": "xlsx, ods, csv, all", "default": "all"},
                 "session_id": {"type": "string"},
             },
