@@ -24,7 +24,7 @@ TOOLS = [
                             "headers": {"type": "array", "items": {"type": "string"}, "description": "Column headers"},
                             "rows": {
                                 "type": "array",
-                                "items": {"type": "array", "description": "Each row is an array of cell values"},
+                                "items": {"type": "array", "items": {}, "description": "Each row is an array of cell values"},
                                 "description": "Data rows"
                             },
                         },
@@ -56,7 +56,7 @@ TOOLS = [
                             "headers": {"type": "array", "items": {"type": "string"}, "description": "Column headers"},
                             "rows": {
                                 "type": "array",
-                                "items": {"type": "array", "description": "Each row is an array of cell values"},
+                                "items": {"type": "array", "items": {}, "description": "Each row is an array of cell values"},
                                 "description": "Data rows"
                             },
                         },
@@ -133,7 +133,7 @@ TOOLS = [
                             "headers": {"type": "array", "items": {"type": "string"}, "description": "Table column headers"},
                             "rows": {
                                 "type": "array",
-                                "items": {"type": "array", "description": "Each row is an array of cell values"},
+                                "items": {"type": "array", "items": {}, "description": "Each row is an array of cell values"},
                                 "description": "Table data rows"
                             },
                         },
