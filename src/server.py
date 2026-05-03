@@ -31,6 +31,7 @@ app = Server("mcp-office", version="1.0.0")
 file_handler = FileHandler(output_dir=os.environ.get("OUTPUT_DIR", "outputs"))
 file_cleanup = FileCleanup(output_dir=os.environ.get("OUTPUT_DIR", "outputs"))
 rate_limiter = RateLimiter()
+base_url = os.environ.get("BASE_URL", "")  # e.g., "http://mcp-office:8765" for SSE mode
 
 
 def get_session_id(params: dict[str, Any]) -> str:
@@ -44,8 +45,8 @@ def check_rate_limit(session_id: str) -> Optional[str]:
     return None
 
 
-def format_file_result(file_info: dict) -> str:
-    return (
+def format_file_result(file_info: dict, base_url: str = "") -> str:
+    result = (
         f"✅ **File Generated Successfully**\n\n"
         f"**File:** {file_info['filename']}\n"
         f"**Size:** {file_handler._human_readable_size(file_info['size_bytes'])}\n"
@@ -53,6 +54,10 @@ def format_file_result(file_info: dict) -> str:
         f"**Path:** {file_info['filepath']}\n"
         f"**Created:** {file_info['created_at']}"
     )
+    if base_url:
+        download_url = f"{base_url}/files/{file_info['session_id']}/{file_info['filename']}"
+        result += f"\n\n**Download:** [{download_url}]({download_url})"
+    return result
 
 
 # ── Tool Definitions ──
@@ -268,7 +273,6 @@ async def _excel_create(args: dict) -> list[TextContent]:
     template_path = args.get("template_path")
     
     if template_path:
-        # Use user-provided template as base
         data = gen.create_from_template(
             template_path,
             args["sheets"],
@@ -282,7 +286,7 @@ async def _excel_create(args: dict) -> list[TextContent]:
         filename += ".xlsx"
     filename = file_handler.generate_filename(filename.rsplit(".", 1)[0], ".xlsx")
     file_info = await file_handler.save_file(data, filename, get_session_id(args))
-    return [TextContent(type="text", text=format_file_result(file_info))]
+    return [TextContent(type="text", text=format_file_result(file_info, base_url))]
 
 
 async def _excel_export(args: dict) -> list[TextContent]:
@@ -312,7 +316,6 @@ async def _docx_create(args: dict) -> list[TextContent]:
     template_path = args.get("template_path")
     
     if template_path:
-        # Use user-provided template as base
         data = gen.create_from_template(
             template_path,
             title=args.get("title", "Document"),
@@ -333,7 +336,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
         filename += ".docx"
     filename = file_handler.generate_filename(filename.rsplit(".", 1)[0], ".docx")
     file_info = await file_handler.save_file(data, filename, get_session_id(args))
-    return [TextContent(type="text", text=format_file_result(file_info))]
+    return [TextContent(type="text", text=format_file_result(file_info, base_url))]
 
 
 async def _docx_generate_from_prompt(args: dict) -> list[TextContent]:
@@ -345,7 +348,7 @@ async def _docx_generate_from_prompt(args: dict) -> list[TextContent]:
         filename += ".docx"
     filename = file_handler.generate_filename(filename.rsplit(".", 1)[0], ".docx")
     file_info = await file_handler.save_file(data, filename, get_session_id(args))
-    return [TextContent(type="text", text=format_file_result(file_info))]
+    return [TextContent(type="text", text=format_file_result(file_info, base_url))]
 
 
 async def _docx_export(args: dict) -> list[TextContent]:
@@ -378,7 +381,6 @@ async def _pptx_create(args: dict) -> list[TextContent]:
     template_path = args.get("template_path")
     
     if template_path:
-        # Use user-provided template as base
         data = gen.create_from_template(
             template_path,
             slides=args.get("slides"),
@@ -396,7 +398,7 @@ async def _pptx_create(args: dict) -> list[TextContent]:
         filename += ".pptx"
     filename = file_handler.generate_filename(filename.rsplit(".", 1)[0], ".pptx")
     file_info = await file_handler.save_file(data, filename, get_session_id(args))
-    return [TextContent(type="text", text=format_file_result(file_info))]
+    return [TextContent(type="text", text=format_file_result(file_info, base_url))]
 
 
 async def _pptx_generate_from_prompt(args: dict) -> list[TextContent]:
@@ -408,7 +410,7 @@ async def _pptx_generate_from_prompt(args: dict) -> list[TextContent]:
         filename += ".pptx"
     filename = file_handler.generate_filename(filename.rsplit(".", 1)[0], ".pptx")
     file_info = await file_handler.save_file(data, filename, get_session_id(args))
-    return [TextContent(type="text", text=format_file_result(file_info))]
+    return [TextContent(type="text", text=format_file_result(file_info, base_url))]
 
 
 async def _pptx_export(args: dict) -> list[TextContent]:
@@ -535,6 +537,34 @@ async def run_sse_server():
         log.info("Message POST received")
         await sse_transport.handle_post_message(scope, receive, send)
 
+    # File download handler
+    async def files_asgi(scope, receive, send):
+        if scope["type"] != "http":
+            return
+        import pathlib
+        from starlette.responses import FileResponse, PlainTextResponse
+        
+        path = scope.get("path", "")
+        # Path format: /files/{session_id}/{filename}
+        parts = path.split("/")
+        if len(parts) < 4 or parts[1] != "files":
+            response = PlainTextResponse("Not Found", status_code=404)
+            await response(scope, receive, send)
+            return
+        
+        session_id = parts[2]
+        filename = "/".join(parts[3:])
+        file_path = pathlib.Path(os.environ.get("OUTPUT_DIR", "outputs")) / session_id / filename
+        
+        if not file_path.is_file():
+            response = PlainTextResponse(f"File not found: {filename}", status_code=404)
+            await response(scope, receive, send)
+            return
+        
+        log.info(f"File download: {file_path}")
+        response = FileResponse(str(file_path), filename=filename)
+        await response(scope, receive, send)
+
     # Single ASGI router — avoids Starlette Mount 307 redirect on /sse → /sse/
     async def router_asgi(scope, receive, send):
         if scope["type"] != "http":
@@ -544,6 +574,8 @@ async def run_sse_server():
             await sse_asgi(scope, receive, send)
         elif path.startswith("/messages"):
             await messages_asgi(scope, receive, send)
+        elif path.startswith("/files"):
+            await files_asgi(scope, receive, send)
         else:
             from starlette.responses import PlainTextResponse
             response = PlainTextResponse("Not Found", status_code=404)
