@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 from typing import Any, Optional
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.chart import Reference
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -209,6 +209,47 @@ class ExcelGenerator:
             result[f"{name}.csv"] = csv_content.encode("utf-8")
 
         return result
+
+    def create_from_template(
+        self,
+        template_path: str,
+        sheets: list[dict],
+        metadata: Optional[dict] = None,
+    ) -> bytes:
+        """Create a workbook using an existing .xlsx file as template.
+
+        The template preserves formatting, formulas, charts, and styles.
+        Data sheets from the request are added as new sheets (or replace
+        existing sheets with matching names).
+
+        Args:
+            template_path: Path to the .xlsx template file.
+            sheets: List of sheet data to populate.
+            metadata: Optional document metadata.
+
+        Returns:
+            Workbook content as bytes.
+        """
+        validate_sheet_data(sheets)
+        wb = load_workbook(template_path)
+
+        # Apply metadata
+        if metadata:
+            self._apply_metadata(wb, metadata)
+
+        # Build a set of sheet names to replace
+        sheet_names = {s.get("name", "") for s in sheets}
+
+        # Remove sheets that will be replaced
+        for name in sheet_names:
+            if name in wb.sheetnames:
+                del wb[name]
+
+        # Add/replace sheets with data
+        for sheet_data in sheets:
+            self._add_sheet(wb, sheet_data)
+
+        return self._save_workbook(wb)
 
 
 # Global generator instance

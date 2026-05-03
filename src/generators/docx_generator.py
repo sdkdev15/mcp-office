@@ -6,7 +6,7 @@ import io
 import re
 from typing import Any, Optional
 
-from docx import Document
+from docx import Document, Document as DocxDocument
 from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -398,6 +398,72 @@ class DOCXGenerator:
             props.category = metadata["category"]
         if metadata.get("comments"):
             props.description = metadata["comments"]
+
+    def create_from_template(
+        self,
+        template_path: str,
+        title: str = "Document",
+        content_paragraphs: Optional[list[str]] = None,
+        tables: Optional[list[dict]] = None,
+        metadata: Optional[dict] = None,
+    ) -> bytes:
+        """Create a document using an existing .docx file as template.
+
+        The template preserves all formatting, styles, headers, footers,
+        and page setup. New content is appended after existing content.
+
+        Args:
+            template_path: Path to the .docx template file.
+            title: Document title (replaces first Heading 1 if found).
+            content_paragraphs: Optional list of paragraph texts to append.
+            tables: Optional list of table data dicts with headers and rows.
+            metadata: Optional document metadata.
+
+        Returns:
+            Document content as bytes.
+        """
+        self.doc = Document(template_path)
+
+        # Apply metadata
+        if metadata:
+            self._apply_metadata(metadata)
+
+        # Replace first heading with title if found
+        if title:
+            for element in self.doc.element.body:
+                tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
+                if tag == "p":
+                    from docx.oxml.ns import nsdecls
+                    from lxml import etree
+                    runs = element.findall(".//{%s}r" % nsdecls("w").split()[0].rstrip(">"))
+                    if runs:
+                        # Check if this is a heading style
+                        pPr = element.find(".//{%s*pPr" % nsdecls("w").split()[0].rstrip(">"))
+                        if pPr is not None:
+                            pStyle = pPr.find("{%s}pStyle" % nsdecls("w").split()[0].rstrip(">"))
+                            if pStyle is not None and pStyle.get("{%s}val" % nsdecls("w").split()[0].rstrip(">")):
+                                style_val = pStyle.get("{%s}val" % nsdecls("w").split()[0].rstrip(">"))
+                                if style_val.startswith("Heading"):
+                                    # Replace text
+                                    for run in element.iterfind(".//{%s}r" % nsdecls("w").split()[0].rstrip(">")):
+                                        t = run.find("{%s}t" % nsdecls("w").split()[0].rstrip(">"))
+                                        if t is not None:
+                                            t.text = title
+                                    break
+
+        # Append content paragraphs
+        if content_paragraphs:
+            for text in content_paragraphs:
+                self.add_paragraph(text)
+
+        # Append tables
+        if tables:
+            for table_data in tables:
+                headers = table_data.get("headers", [])
+                rows = table_data.get("rows", [])
+                self.add_table(headers, rows)
+
+        return self._save_document()
 
     def _save_document(self) -> bytes:
         """Save document to bytes."""

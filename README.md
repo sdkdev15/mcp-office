@@ -9,6 +9,7 @@ MCP (Model Context Protocol) server untuk menghasilkan dokumen Office — **Exce
 - **PowerPoint** — Presentasi dengan slide, chart, tabel, text box
 - **ODF Support** — Format LibreOffice (.ods, .odt, .odp)
 - **5 Tema Bawaan** — corporate, minimal, creative, academic, dark
+- **Custom Template** — Gunakan file .xlsx/.docx/.pptx Anda sebagai template (preserves formatting, formulas, charts, master slides)
 - **Multi-format Export** — Generate OOXML + ODF dalam satu panggilan
 - **Locale Support** — Indonesia (id_ID) dan Inggris (en_US)
 - **Rate Limiting** — Sliding window per user
@@ -233,6 +234,106 @@ Jalankan langsung via Docker tanpa SSE:
   "arguments": {}
 }
 ```
+
+---
+
+## Custom Template (Menggunakan Template Anda Sendiri)
+
+Anda dapat menggunakan file dokumen Anda sendiri sebagai template. Server akan melestarikan semua formatting, styles, formulas, charts, master slides, dan layout dari template Anda, lalu mengisi data baru.
+
+### Excel dengan Template
+
+Gunakan file `.xlsx` Anda sebagai template (misalnya template dengan formula, chart, dan formatting perusahaan):
+
+```json
+{
+  "tool": "excel_create",
+  "arguments": {
+    "filename": "laporan_baru.xlsx",
+    "template_path": "/path/to/template_perusahaan.xlsx",
+    "sheets": [
+      {
+        "name": "Data",
+        "headers": ["Produk", "Q1", "Q2", "Q3", "Q4"],
+        "rows": [
+          ["Laptop", 150, 200, 180, 250],
+          ["HP", 300, 350, 400, 380]
+        ]
+      }
+    ]
+  }
+}
+```
+
+> **Template preserves:** formulas, charts, conditional formatting, pivot tables, data validation, named ranges.
+
+### Word dengan Template
+
+Gunakan file `.docx` Anda sebagai template (misalnya template surat resmi dengan header/logo perusahaan):
+
+```json
+{
+  "tool": "docx_create",
+  "arguments": {
+    "filename": "surat_baru.docx",
+    "template_path": "/path/to/template_surat.docx",
+    "title": "Surat Undangan Rapat",
+    "content_paragraphs": [
+      "Dengan hormat,",
+      "Kami mengundang Bapak/Ibu untuk menghadiri rapat bulanan tim engineering.",
+      "Terima kasih."
+    ],
+    "tables": [
+      {
+        "headers": ["Agenda", "Waktu", "Pembicara"],
+        "rows": [
+          ["Review Sprint", "10:00", "PM"],
+          ["Planning", "11:00", "Tech Lead"]
+        ]
+      }
+    ]
+  }
+}
+```
+
+> **Template preserves:** headers, footers, page setup, styles, fonts, company logo, watermarks.
+
+### PowerPoint dengan Template
+
+Gunakan file `.pptx` Anda sebagai template (misalnya template presentasi dengan master slide dan branding perusahaan):
+
+```json
+{
+  "tool": "pptx_create",
+  "arguments": {
+    "filename": "presentasi_baru.pptx",
+    "template_path": "/path/to/template_presentasi.pptx",
+    "slides": [
+      {
+        "layout": "title_and_content",
+        "title": "Update Proyek Q1",
+        "content": "Presentasi progress kuartal pertama",
+        "bullets": ["Target tercapai 95%", "Budget on track", "Tim expanded"]
+      },
+      {
+        "layout": "title_and_content",
+        "title": "Rencana Q2",
+        "bullets": ["Launch fitur baru", "Scale infrastruktur", "Hire 3 engineer"]
+      }
+    ]
+  }
+}
+```
+
+> **Template preserves:** master slides, themes, fonts, layouts, company branding, slide transitions.
+
+### Cara Kerja Template
+
+1. **Upload/Tempatkan** file template (.xlsx, .docx, atau .pptx) di server
+2. **Berikan path** ke file template via parameter `template_path`
+3. **Sertakan data** baru yang ingin diisi (sheets, content_paragraphs, slides, tables)
+4. **Server** akan memuat template, melestarikan formatting, dan mengisi data baru
+5. **Hasil** disimpan sebagai file baru dengan nama di parameter `filename`
 
 ---
 

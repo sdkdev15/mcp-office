@@ -71,6 +71,7 @@ TOOLS = [
                     "items": {"type": "object"},
                 },
                 "theme": {"type": "string", "description": "Theme name (corporate, minimal, creative, academic, dark)", "default": "corporate"},
+                "template_path": {"type": "string", "description": "Optional path to a .xlsx template file to use as base (preserves formatting, formulas, charts)"},
                 "session_id": {"type": "string", "description": "Optional session ID"},
                 "metadata": {"type": "object", "description": "Optional document metadata"},
                 "locale": {"type": "string", "description": "Locale (en_US, id_ID)", "default": "en_US"},
@@ -100,8 +101,11 @@ TOOLS = [
                 "filename": {"type": "string"},
                 "title": {"type": "string", "default": "Document"},
                 "theme": {"type": "string", "default": "corporate"},
+                "template_path": {"type": "string", "description": "Optional path to a .docx template file to use as base (preserves formatting, styles, headers, footers)"},
                 "page_size": {"type": "string", "default": "A4"},
                 "orientation": {"type": "string", "default": "portrait"},
+                "content_paragraphs": {"type": "array", "description": "Optional list of paragraph texts to append", "items": {"type": "string"}},
+                "tables": {"type": "array", "description": "Optional list of table data with headers and rows", "items": {"type": "object"}},
                 "session_id": {"type": "string"},
                 "metadata": {"type": "object"},
             },
@@ -146,6 +150,8 @@ TOOLS = [
                 "filename": {"type": "string"},
                 "title": {"type": "string", "default": "Presentation"},
                 "theme": {"type": "string", "default": "corporate"},
+                "template_path": {"type": "string", "description": "Optional path to a .pptx template file to use as base (preserves master slides, themes, layouts)"},
+                "slides": {"type": "array", "description": "Optional list of slide data with title, content, bullets", "items": {"type": "object"}},
                 "slide_size": {"type": "string", "default": "widescreen"},
                 "session_id": {"type": "string"},
                 "metadata": {"type": "object"},
@@ -259,7 +265,18 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
 async def _excel_create(args: dict) -> list[TextContent]:
     gen = ExcelGenerator(args.get("theme", "corporate"))
-    data = gen.create_workbook(args["sheets"], args.get("metadata"))
+    template_path = args.get("template_path")
+    
+    if template_path:
+        # Use user-provided template as base
+        data = gen.create_from_template(
+            template_path,
+            args["sheets"],
+            args.get("metadata"),
+        )
+    else:
+        data = gen.create_workbook(args["sheets"], args.get("metadata"))
+    
     filename = args["filename"]
     if not filename.endswith(".xlsx"):
         filename += ".xlsx"
@@ -292,12 +309,25 @@ async def _excel_export(args: dict) -> list[TextContent]:
 
 async def _docx_create(args: dict) -> list[TextContent]:
     gen = DOCXGenerator(args.get("theme", "corporate"))
-    data = gen.create_document(
-        args.get("title", "Document"),
-        args.get("page_size", "A4"),
-        args.get("orientation", "portrait"),
-        args.get("metadata"),
-    )
+    template_path = args.get("template_path")
+    
+    if template_path:
+        # Use user-provided template as base
+        data = gen.create_from_template(
+            template_path,
+            title=args.get("title", "Document"),
+            content_paragraphs=args.get("content_paragraphs"),
+            tables=args.get("tables"),
+            metadata=args.get("metadata"),
+        )
+    else:
+        data = gen.create_document(
+            args.get("title", "Document"),
+            args.get("page_size", "A4"),
+            args.get("orientation", "portrait"),
+            args.get("metadata"),
+        )
+    
     filename = args["filename"]
     if not filename.endswith(".docx"):
         filename += ".docx"
@@ -345,11 +375,22 @@ async def _docx_export(args: dict) -> list[TextContent]:
 
 async def _pptx_create(args: dict) -> list[TextContent]:
     gen = PPTXGenerator(args.get("theme", "corporate"))
-    data = gen.create_presentation(
-        args.get("title", "Presentation"),
-        args.get("slide_size", "widescreen"),
-        args.get("metadata"),
-    )
+    template_path = args.get("template_path")
+    
+    if template_path:
+        # Use user-provided template as base
+        data = gen.create_from_template(
+            template_path,
+            slides=args.get("slides"),
+            metadata=args.get("metadata"),
+        )
+    else:
+        data = gen.create_presentation(
+            args.get("title", "Presentation"),
+            args.get("slide_size", "widescreen"),
+            args.get("metadata"),
+        )
+    
     filename = args["filename"]
     if not filename.endswith(".pptx"):
         filename += ".pptx"

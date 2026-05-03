@@ -289,6 +289,43 @@ class PPTXGenerator:
 
         return self._save_presentation()
 
+    def create_from_template(
+        self,
+        template_path: str,
+        slides: Optional[list[dict]] = None,
+        metadata: Optional[dict] = None,
+    ) -> bytes:
+        """Create a presentation using an existing .pptx file as template.
+
+        The template preserves all master slide designs, themes, fonts,
+        and layouts. New slides are appended after existing content.
+
+        Args:
+            template_path: Path to the .pptx template file.
+            slides: Optional list of slide dicts with title, content, bullets.
+            metadata: Optional document metadata.
+
+        Returns:
+            Presentation content as bytes.
+        """
+        self.pres = Presentation(template_path)
+
+        # Apply metadata
+        if metadata:
+            self._apply_metadata(metadata)
+
+        # Add new slides
+        if slides:
+            for slide_data in slides:
+                self.add_slide(
+                    layout=slide_data.get("layout", "title_and_content"),
+                    title=slide_data.get("title"),
+                    content=slide_data.get("content"),
+                    bullets=slide_data.get("bullets"),
+                )
+
+        return self._save_presentation()
+
     def _style_title(self, shape) -> None:
         """Apply theme styling to a title shape."""
         for paragraph in shape.text_frame.paragraphs:
