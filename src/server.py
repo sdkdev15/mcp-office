@@ -535,11 +535,24 @@ async def run_sse_server():
         log.info("Message POST received")
         await sse_transport.handle_post_message(scope, receive, send)
 
+    # Single ASGI router — avoids Starlette Mount 307 redirect on /sse → /sse/
+    async def router_asgi(scope, receive, send):
+        if scope["type"] != "http":
+            return
+        path = scope.get("path", "")
+        if path == "/sse" or path == "/sse/":
+            await sse_asgi(scope, receive, send)
+        elif path.startswith("/messages"):
+            await messages_asgi(scope, receive, send)
+        else:
+            from starlette.responses import PlainTextResponse
+            response = PlainTextResponse("Not Found", status_code=404)
+            await response(scope, receive, send)
+
     starlette_app = Starlette(
         debug=True,
         routes=[
-            Mount("/sse", app=sse_asgi),
-            Mount("/messages/", app=messages_asgi),
+            Mount("/", app=router_asgi),
         ],
     )
 
