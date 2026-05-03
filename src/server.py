@@ -156,7 +156,21 @@ TOOLS = [
                 "title": {"type": "string", "default": "Presentation"},
                 "theme": {"type": "string", "default": "corporate"},
                 "template_path": {"type": "string", "description": "Optional path to a .pptx template file to use as base (preserves master slides, themes, layouts)"},
-                "slides": {"type": "array", "description": "Optional list of slide data with title, content, bullets", "items": {"type": "object"}},
+                "slides": {
+                    "type": "array",
+                    "description": "Optional list of slide data with title, content, bullets",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "Slide title"},
+                            "content": {"type": "string", "description": "Slide body content/description"},
+                            "bullets": {"type": "array", "items": {"type": "string"}, "description": "Bullet points for the slide"},
+                            "image_path": {"type": "string", "description": "Optional path to an image"},
+                            "table_headers": {"type": "array", "items": {"type": "string"}, "description": "Optional table headers"},
+                            "table_rows": {"type": "array", "items": {"type": "array"}, "description": "Optional table rows"}
+                        }
+                    }
+                },
                 "slide_size": {"type": "string", "default": "widescreen"},
                 "session_id": {"type": "string"},
                 "metadata": {"type": "object"},
