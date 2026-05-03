@@ -94,7 +94,7 @@ class FileHandler:
             "size_bytes": file_size,
             "mime_type": mime_type,
             "created_at": datetime.now().isoformat(),
-            "resource_uri": f"file://outputs/{session_id or 'default'}/{filename}",
+            "resource_uri": f"file://{self.output_dir}/{session_id or 'default'}/{filename}",
         }
 
     async def read_file(self, filepath: str) -> bytes:
@@ -143,7 +143,7 @@ class FileHandler:
                     "size_bytes": filepath.stat().st_size,
                     "mime_type": self._get_mime_type(filepath.suffix),
                     "created_at": datetime.fromtimestamp(filepath.stat().st_ctime).isoformat(),
-                    "resource_uri": f"file://outputs/{session_id}/{filepath.name}",
+                    "resource_uri": f"file://{self.output_dir}/{session_id}/{filepath.name}",
                 })
 
         return files

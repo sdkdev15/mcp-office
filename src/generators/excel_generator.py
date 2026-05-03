@@ -41,9 +41,9 @@ class ExcelGenerator:
         validate_sheet_data(sheets)
         wb = Workbook()
 
-        # Remove default sheet
-        if "Sheet" in wb.sheetnames:
-            del wb["Sheet"]
+        # Remove default sheet (openpyxl creates "Sheet" by default)
+        if wb.sheetnames:
+            del wb[wb.sheetnames[0]]
 
         # Apply metadata
         if metadata:

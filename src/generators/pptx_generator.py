@@ -321,10 +321,55 @@ class PPTXGenerator:
         bg_color = color or self.theme.colors.background
         fill.fore_color.rgb = hex_to_rgbcolor(bg_color)
 
+    @staticmethod
+    def _strip_markdown(text: str) -> str:
+        """Strip Markdown formatting from text.
+        
+        Removes: **bold**, *italic*, `inline code`, [link](url), ~~strikethrough~~,
+        heading markers (##), horizontal rules (---), and blockquote markers (>).
+        
+        Args:
+            text: Text with Markdown formatting.
+        
+        Returns:
+            Clean text without Markdown markers.
+        """
+        # Remove heading markers (###, ##, #) at start of line
+        result = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        
+        # Remove horizontal rules
+        result = re.sub(r'^[-*_]{3,}\s*$', '', result, flags=re.MULTILINE)
+        
+        # Remove blockquote markers
+        result = re.sub(r'^>\s+', '', result, flags=re.MULTILINE)
+        
+        # Remove strikethrough ~~text~~
+        result = re.sub(r'~~(.*?)~~', r'\1', result)
+        
+        # Remove **bold** or __bold__
+        result = re.sub(r'\*\*(.+?)\*\*', r'\1', result, flags=re.DOTALL)
+        result = re.sub(r'__(.+?)__', r'\1', result, flags=re.DOTALL)
+        
+        # Remove *italic* or _italic_
+        result = re.sub(r'\*(.+?)\*', r'\1', result, flags=re.DOTALL)
+        result = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', result, flags=re.DOTALL)
+        
+        # Remove `inline code`
+        result = re.sub(r'`([^`]+)`', r'\1', result)
+        
+        # Remove [link](url) -> link
+        result = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', result)
+        
+        # Remove image syntax ![alt](url)
+        result = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', result)
+        
+        return result.strip()
+
     def create_from_prompt(self, prompt: str, title: str = "Presentation") -> bytes:
         """Create a presentation from a natural language prompt.
 
-        Parses the prompt to extract slides from "Heading - content" lines.
+        Parses the prompt to extract slides from headings, "Heading - content" lines,
+        Markdown headings (##), and tables.
         """
         log.info(f"Creating presentation from prompt: {prompt[:100]}...")
 
@@ -346,18 +391,87 @@ class PPTXGenerator:
         lines = text.strip().split("\n")
         for line in lines:
             line = line.strip()
+            # Skip instruction lines
             if re.match(r"^(Buat|Format|Gunakan|Create|Generate)", line, re.IGNORECASE):
                 continue
+            # Strip Markdown heading markers
+            line = re.sub(r'^#{1,6}\s+', '', line)
+            # Strip Markdown formatting
+            line = self._strip_markdown(line)
             if line and len(line) > 10:
                 return line.rstrip(":").strip()
         return "Presentation"
 
     def _parse_prompt_to_slides(self, text: str) -> None:
-        """Parse prompt text into slides."""
+        """Parse prompt text into slides.
+        
+        Supports:
+        - Markdown headings (##, ###) as slide titles
+        - "Heading - content" pattern
+        - ALL CAPS headings
+        - Bullet points (appended to last slide)
+        - Tables (pipe-separated) as table slides
+        - Regular paragraphs as content slides
+        """
         lines = text.strip().split("\n")
+        pending_bullets = []
+        table_buffer = []
 
-        for line in lines:
-            line = line.strip()
+        def flush_bullets():
+            """Add pending bullets to the last slide as content."""
+            nonlocal pending_bullets
+            if pending_bullets and len(self.pres.slides) > 0:
+                # Append bullets to last slide's content
+                last_slide = self.pres.slides[-1]
+                bullets_text = "\n".join(["- " + b for b in pending_bullets])
+                # Add as a new content paragraph if there's room
+                try:
+                    for shape in last_slide.shapes:
+                        if shape.has_text_frame:
+                            tf = shape.text_frame
+                            p = tf.add_paragraph()
+                            p.text = bullets_text
+                            for run in p.runs:
+                                self._style_run(run)
+                            break
+                except Exception:
+                    pass
+            pending_bullets = []
+
+        def flush_table():
+            """Create a slide from buffered table data."""
+            nonlocal table_buffer
+            if len(table_buffer) >= 2:
+                headers = table_buffer[0]
+                rows = table_buffer[1:]
+                # Create a slide with the table
+                slide_layout_map = {
+                    "title_and_content": 1,
+                    "blank": 6,
+                }
+                try:
+                    slide_layout = self.pres.slide_layouts[1]
+                except IndexError:
+                    slide_layout = self.pres.slide_layouts[0]
+                slide = self.pres.slides.add_slide(slide_layout)
+                if headers and getattr(slide.shapes, 'title', None):
+                    slide.shapes.title.text = headers[0] if len(headers) > 1 else "Table"
+                    self._style_title(slide.shapes.title)
+                # Add table to slide
+                try:
+                    self.add_table(len(self.pres.slides) - 1, headers, rows)
+                except Exception as e:
+                    log.warning(f"Failed to add table to slide: {e}")
+                    # Fallback: add as text
+                    self.add_slide(title="Table", content="\n".join([" | ".join(str(c) for c in row) for row in [headers] + rows[:5]]))
+            table_buffer = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            i += 1
+
+            # Skip empty lines
             if not line:
                 continue
 
@@ -365,42 +479,83 @@ class PPTXGenerator:
             if re.match(r"^(Buat|Format|Gunakan|Create|Generate|Silakan|Please)", line, re.IGNORECASE):
                 continue
 
-            # Detect "Heading - content" pattern (lenient: first word capitalized, 2+ words before dash)
+            # Skip Markdown table separator lines (|---|---|)
+            if re.match(r'^\|[\s\-:|]+\|$', line):
+                continue
+
+            # Detect Markdown table rows
+            if "|" in line and line.count("|") >= 2:
+                cells = [self._strip_markdown(c.strip()) for c in line.split("|") if c.strip()]
+                if cells:
+                    table_buffer.append(cells)
+                flush_bullets()
+                continue
+
+            # If we hit non-table content, flush table buffer
+            if table_buffer and "|" not in line:
+                flush_table()
+
+            # Detect Markdown headings (##, ###, ####)
+            md_heading = re.match(r'^#{1,6}\s+(.+)$', line)
+            if md_heading:
+                flush_bullets()
+                flush_table()
+                heading_text = self._strip_markdown(md_heading.group(1).strip())
+                self.add_slide(title=heading_text)
+                continue
+
+            # Detect "Heading - content" pattern
             dash_match = re.match(r"^([A-Z][^-\n]{5,}?)\s+-\s+(.+)$", line)
             if dash_match:
-                slide_title = dash_match.group(1).strip()
-                content_text = dash_match.group(2).strip()
+                flush_bullets()
+                flush_table()
+                slide_title = self._strip_markdown(dash_match.group(1).strip())
+                content_text = self._strip_markdown(dash_match.group(2).strip())
 
                 # Try to split content into bullets (comma-separated)
                 if "," in content_text and len(content_text) > 50:
-                    parts = [p.strip() for p in content_text.split(",") if p.strip()]
+                    parts = [self._strip_markdown(p.strip()) for p in content_text.split(",") if p.strip()]
                     if len(parts) > 1:
-                        self.add_slide(
-                            title=slide_title,
-                            bullets=parts,
-                        )
+                        self.add_slide(title=slide_title, bullets=parts)
                         continue
 
-                self.add_slide(
-                    title=slide_title,
-                    content=content_text,
-                )
+                self.add_slide(title=slide_title, content=content_text)
                 continue
 
             # ALL CAPS heading
             if line.isupper() and not line.startswith(("-", "*", "•")):
+                flush_bullets()
+                flush_table()
                 self.add_slide(title=line.title())
                 continue
 
-            # Bullet points - add to last slide
+            # Bullet points
             bullet_match = re.match(r"^[-*•]\s+(.*)", line)
             if bullet_match:
-                # Would need to append to last slide, skip for now
+                bullet_text = self._strip_markdown(bullet_match.group(1).strip())
+                if bullet_text:
+                    pending_bullets.append(bullet_text)
                 continue
 
-            # Regular paragraph - treat as content slide
+            # Numbered items
+            num_match = re.match(r"^\d+\.\s+(.*)", line)
+            if num_match:
+                bullet_text = self._strip_markdown(num_match.group(1).strip())
+                if bullet_text:
+                    pending_bullets.append(bullet_text)
+                continue
+
+            # Regular paragraph - treat as content slide if long enough
             if len(line) > 20:
-                self.add_slide(title="Content", content=line)
+                flush_bullets()
+                flush_table()
+                clean_line = self._strip_markdown(line)
+                if clean_line:
+                    self.add_slide(title="Content", content=clean_line)
+
+        # Flush remaining buffers
+        flush_bullets()
+        flush_table()
 
     def create_from_template(
         self,
@@ -492,4 +647,4 @@ class PPTXGenerator:
         buffer = io.BytesIO()
         self.pres.save(buffer)
         buffer.seek(0)
-        return buffer.getvalue()
+        return buffer.getvalue()
