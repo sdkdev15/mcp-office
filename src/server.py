@@ -328,22 +328,44 @@ async def _excel_export(args: dict) -> list[TextContent]:
 async def _docx_create(args: dict) -> list[TextContent]:
     gen = DOCXGenerator(args.get("theme", "corporate"))
     template_path = args.get("template_path")
+    content_paragraphs = args.get("content_paragraphs")
+    tables = args.get("tables")
     
     if template_path:
         data = gen.create_from_template(
             template_path,
             title=args.get("title", "Document"),
-            content_paragraphs=args.get("content_paragraphs"),
-            tables=args.get("tables"),
+            content_paragraphs=content_paragraphs,
+            tables=tables,
             metadata=args.get("metadata"),
         )
     else:
-        data = gen.create_document(
-            args.get("title", "Document"),
-            args.get("page_size", "A4"),
-            args.get("orientation", "portrait"),
-            args.get("metadata"),
-        )
+        # Create document from scratch
+        from docx import Document
+        gen.doc = Document()
+        gen._setup_page(args.get("page_size", "A4"), args.get("orientation", "portrait"))
+        gen._apply_theme_styles()
+        
+        if args.get("metadata"):
+            gen._apply_metadata(args["metadata"])
+        
+        title = args.get("title", "Document")
+        gen.add_heading(title, level=1)
+        gen.add_horizontal_line()
+        
+        # Parse content_paragraphs as structured text
+        if content_paragraphs:
+            combined = "\n".join(content_paragraphs)
+            gen._parse_and_render(combined)
+        
+        # Add tables
+        if tables:
+            for table_data in tables:
+                headers = table_data.get("headers", [])
+                rows = table_data.get("rows", [])
+                gen.add_table(headers, rows)
+        
+        data = gen._save_document()
     
     filename = args["filename"]
     if not filename.endswith(".docx"):
@@ -393,19 +415,48 @@ async def _docx_export(args: dict) -> list[TextContent]:
 async def _pptx_create(args: dict) -> list[TextContent]:
     gen = PPTXGenerator(args.get("theme", "corporate"))
     template_path = args.get("template_path")
+    slides = args.get("slides")
     
     if template_path:
         data = gen.create_from_template(
             template_path,
-            slides=args.get("slides"),
+            slides=slides,
             metadata=args.get("metadata"),
         )
     else:
-        data = gen.create_presentation(
-            args.get("title", "Presentation"),
-            args.get("slide_size", "widescreen"),
-            args.get("metadata"),
-        )
+        # Create presentation from scratch
+        from pptx import Presentation
+        from pptx.util import Inches
+        gen.pres = Presentation()
+        
+        # Set slide size
+        slide_size = args.get("slide_size", "widescreen")
+        if slide_size.lower() == "standard":
+            gen.pres.slide_width = Inches(10)
+            gen.pres.slide_height = Inches(7.5)
+        else:
+            gen.pres.slide_width = Inches(13.33)
+            gen.pres.slide_height = Inches(7.5)
+        
+        # Apply metadata
+        if args.get("metadata"):
+            gen._apply_metadata(args["metadata"])
+        
+        # Add title slide
+        title = args.get("title", "Presentation")
+        gen.add_slide("title", title=title)
+        
+        # Add content slides
+        if slides:
+            for slide_data in slides:
+                gen.add_slide(
+                    layout=slide_data.get("layout", "title_and_content"),
+                    title=slide_data.get("title"),
+                    content=slide_data.get("content"),
+                    bullets=slide_data.get("bullets"),
+                )
+        
+        data = gen._save_presentation()
     
     filename = args["filename"]
     if not filename.endswith(".pptx"):
