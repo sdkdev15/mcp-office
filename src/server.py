@@ -500,32 +500,28 @@ async def run_sse_server():
 
     sse_transport = SseServerTransport("/messages/")
 
-    async def handle_sse(request: Request):
+    # ASGI app for SSE — handles its own HTTP response lifecycle
+    async def sse_asgi(scope, receive, send):
+        if scope["type"] != "http":
+            return
         log.info("=== New SSE connection ===")
-        from starlette.responses import StreamingResponse
-
-        async def sse_generator():
-            try:
-                async with sse_transport.connect_sse(
-                    request.scope, request.receive, request._send
-                ) as (read_stream, write_stream):
-                    log.info("SSE streams established, starting app.run()")
-                    await app.run(
-                        read_stream,
-                        write_stream,
-                        InitializationOptions(
-                            server_name="mcp-office",
-                            server_version="1.0.0",
-                            capabilities=ServerCapabilities(),
-                        ),
-                    )
-                    log.info("app.run() completed normally")
-            except Exception as e:
-                log.error(f"SSE connection error: {e}")
-
-        # StreamingResponse satisfies Starlette's Route handler
-        # The actual SSE events are sent via request._send inside connect_sse
-        return StreamingResponse(sse_generator(), media_type="text/event-stream")
+        try:
+            async with sse_transport.connect_sse(
+                scope, receive, send
+            ) as (read_stream, write_stream):
+                log.info("SSE streams established, starting app.run()")
+                await app.run(
+                    read_stream,
+                    write_stream,
+                    InitializationOptions(
+                        server_name="mcp-office",
+                        server_version="1.0.0",
+                        capabilities=ServerCapabilities(),
+                    ),
+                )
+                log.info("app.run() completed normally")
+        except Exception as e:
+            log.error(f"SSE connection error: {e}")
 
     # ASGI app for messages — handle_post_message manages its own response via send()
     async def messages_asgi(scope, receive, send):
@@ -542,7 +538,7 @@ async def run_sse_server():
     starlette_app = Starlette(
         debug=True,
         routes=[
-            Route("/sse", endpoint=handle_sse),
+            Mount("/sse", app=sse_asgi),
             Mount("/messages/", app=messages_asgi),
         ],
     )
