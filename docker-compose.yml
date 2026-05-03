@@ -11,6 +11,7 @@ services:
       - RATE_LIMIT_WINDOW=60
       - MCP_TRANSPORT=sse
       - LOCALE=id_ID
+      - BASE_URL=http://localhost:8765
     volumes:
       - ./outputs:/app/outputs
     ports:
