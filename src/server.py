@@ -92,14 +92,8 @@ TOOLS = [
             "properties": {
                 "sheets": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "headers": {"type": "array", "items": {"type": "string"}},
-                            "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
-                        },
-                    },
+                    "description": "List of sheet objects with name, headers, and rows",
+                    "items": {"type": "object"},
                 },
                 "format": {"type": "string", "description": "xlsx, ods, csv, all", "default": "all"},
                 "session_id": {"type": "string"},
