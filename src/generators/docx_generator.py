@@ -334,8 +334,12 @@ class DOCXGenerator:
     def create_from_prompt(self, prompt: str, title: str = "Document") -> bytes:
         """Create a Word document from a natural language prompt.
 
+        Parses the prompt to extract structure: headings, bullet points,
+        tables, and paragraphs. Ignores instruction lines (e.g. "Buat dokumen...",
+        "Format dokumen dengan...").
+
         Args:
-            prompt: Natural language description.
+            prompt: Natural language description with structured content.
             title: Document title.
 
         Returns:
@@ -346,10 +350,124 @@ class DOCXGenerator:
         self.doc = Document()
         self._setup_page()
         self._apply_theme_styles()
-        self.add_heading(title, level=1)
-        self.add_paragraph(prompt)
+
+        # Extract title from prompt if not provided
+        doc_title = title if title != "Document" else self._extract_title(prompt)
+        self.add_heading(doc_title, level=1)
+        self.add_horizontal_line()
+
+        # Parse and render structured content
+        self._parse_and_render(prompt)
 
         return self._save_document()
+
+    def _extract_title(self, text: str) -> str:
+        """Extract document title from prompt text."""
+        lines = text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            # Skip instruction lines
+            if re.match(r"^(Buat|Format|Gunakan|Create|Generate)", line, re.IGNORECASE):
+                continue
+            # First meaningful line is the title
+            if line and len(line) > 10:
+                # Remove trailing colon
+                return line.rstrip(":").strip()
+        return "Document"
+
+    def _parse_and_render(self, text: str) -> None:
+        """Parse prompt text and render structured content."""
+        lines = text.strip().split("\n")
+        i = 0
+        current_section = None
+        bullet_buffer = []
+        table_buffer = []
+        paragraph_buffer = []
+
+        def flush_bullets():
+            nonlocal bullet_buffer
+            if bullet_buffer:
+                self.add_list(bullet_buffer, ordered=False)
+                bullet_buffer = []
+
+        def flush_paragraphs():
+            nonlocal paragraph_buffer
+            if paragraph_buffer:
+                for p in paragraph_buffer:
+                    self.add_paragraph(p, space_after=6)
+                paragraph_buffer = []
+
+        def flush_table():
+            nonlocal table_buffer
+            if len(table_buffer) > 1:
+                headers = table_buffer[0]
+                rows = table_buffer[1:]
+                self.add_table(headers, rows)
+            table_buffer = []
+
+        while i < len(lines):
+            line = lines[i].strip()
+            i += 1
+
+            # Skip empty lines
+            if not line:
+                flush_bullets()
+                flush_paragraphs()
+                continue
+
+            # Skip instruction lines
+            if re.match(r"^(Buat|Format|Gunakan|Create|Generate|Silakan|Please)", line, re.IGNORECASE):
+                flush_bullets()
+                flush_paragraphs()
+                continue
+
+            # Detect section heading (ALL CAPS or ends with colon, not a bullet)
+            if (line.isupper() or line.endswith(":")) and not line.startswith(("-", "*", "•", "1.", "2.", "3.")):
+                flush_bullets()
+                flush_paragraphs()
+                flush_table()
+                heading_text = line.rstrip(":").strip()
+                # Convert to title case if it was uppercase
+                if line.isupper():
+                    heading_text = heading_text.title()
+                self.add_heading(heading_text, level=2)
+                current_section = heading_text
+                continue
+
+            # Detect bullet points
+            bullet_match = re.match(r"^[-*•]\s+(.*)", line)
+            if bullet_match:
+                flush_paragraphs()
+                flush_table()
+                bullet_buffer.append(bullet_match.group(1).strip())
+                continue
+
+            # Detect numbered items
+            num_match = re.match(r"^\d+\.\s+(.*)", line)
+            if num_match:
+                flush_paragraphs()
+                flush_table()
+                bullet_buffer.append(num_match.group(1).strip())
+                continue
+
+            # Detect table-like content (pipe-separated or tab-separated)
+            if "|" in line and line.count("|") > 1:
+                flush_bullets()
+                flush_paragraphs()
+                cells = [c.strip() for c in line.split("|") if c.strip()]
+                if cells:
+                    table_buffer.append(cells)
+                continue
+
+            # Regular paragraph
+            flush_bullets()
+            flush_table()
+            paragraph_buffer.append(line)
+
+        # Flush remaining buffers
+        flush_bullets()
+        flush_paragraphs()
+        flush_table()
 
     def _setup_page(self, page_size: str = "A4", orientation: str = "portrait") -> None:
         """Setup page size and orientation."""
