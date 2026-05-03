@@ -340,7 +340,6 @@ async def _docx_create(args: dict) -> list[TextContent]:
             metadata=args.get("metadata"),
         )
     else:
-        # Create document from scratch
         from docx import Document
         gen.doc = Document()
         gen._setup_page(args.get("page_size", "A4"), args.get("orientation", "portrait"))
@@ -353,12 +352,10 @@ async def _docx_create(args: dict) -> list[TextContent]:
         gen.add_heading(title, level=1)
         gen.add_horizontal_line()
         
-        # Parse content_paragraphs as structured text
         if content_paragraphs:
             combined = "\n".join(content_paragraphs)
             gen._parse_and_render(combined)
         
-        # Add tables
         if tables:
             for table_data in tables:
                 headers = table_data.get("headers", [])
