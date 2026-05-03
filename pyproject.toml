@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "mcp-office"
+version = "1.0.0"
+description = "Production-grade MCP Server for generating Office documents (Excel, PowerPoint, Word) with support for Microsoft Office, OnlyOffice, WPS, and LibreOffice"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MCP Office Team"}
+]
+
+dependencies = [
+    # MCP SDK
+    "mcp>=1.0.0",
+    # Document generation
+    "openpyxl>=3.1.0",
+    "python-pptx>=0.6.21",
+    "python-docx>=1.1.0",
+    "odfpy>=1.4.1",
+    # Validation & data models
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # Async I/O
+    "aiofiles>=23.0.0",
+    # Logging
+    "loguru>=0.7.0",
+    # HTTP for SSE transport
+    "aiohttp>=3.9.0",
+    "uvicorn>=0.24.0",
+    "starlette>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+mcp-office = "run_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
