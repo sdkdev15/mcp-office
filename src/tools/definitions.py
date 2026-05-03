@@ -6,6 +6,7 @@ from mcp.types import Tool
 
 
 TOOLS = [
+    # ── Excel ──
     Tool(
         name="excel_create",
         description="Create an Excel workbook (.xlsx) with multiple sheets, styling, and formatting.",
@@ -68,9 +69,51 @@ TOOLS = [
             "required": ["sheets"],
         },
     ),
+
+    # ── Word Documents (DOCX) ──
+    # NOTE: _from_prompt is listed FIRST — it should be the default choice.
+    Tool(
+        name="docx_from_prompt",
+        description=(
+            "PREFERRED tool for creating Word documents. Generate a complete, "
+            "professionally formatted .docx file from a natural language prompt. "
+            "Use this whenever the user asks you to create, write, draft, summarize, "
+            "or generate any document — including resumes, reports, summaries, letters, "
+            "essays, articles, meeting notes, proposals, etc. Simply pass the full "
+            "content or instructions as the 'prompt' parameter. No need to structure "
+            "paragraphs or tables yourself. This tool handles all formatting automatically."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": (
+                        "The full content, text, or instructions to generate the document from. "
+                        "This can be: the user's request verbatim, article text to summarize, "
+                        "resume details, report content, or any natural language description. "
+                        "Include all the information you want in the document."
+                    ),
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "Output filename (e.g., 'resume.docx', 'summary.docx'). Defaults to 'document.docx'.",
+                },
+                "theme": {"type": "string", "default": "corporate"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["prompt"],
+        },
+    ),
     Tool(
         name="docx_create",
-        description="Create a Word document (.docx) with page setup and theme styling.",
+        description=(
+            "Create a Word document (.docx) from PRE-STRUCTURED data only. "
+            "Requires explicit content_paragraphs array and/or tables array with "
+            "headers/rows already prepared. Do NOT use this for natural language "
+            "requests — use 'docx_from_prompt' instead, which is simpler "
+            "and handles formatting automatically."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
@@ -104,20 +147,6 @@ TOOLS = [
         },
     ),
     Tool(
-        name="docx_generate_from_prompt",
-        description="Generate a Word document from a natural language description.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "prompt": {"type": "string"},
-                "filename": {"type": "string"},
-                "theme": {"type": "string", "default": "corporate"},
-                "session_id": {"type": "string"},
-            },
-            "required": ["prompt"],
-        },
-    ),
-    Tool(
         name="docx_export",
         description="Export a document in multiple formats (docx, odt).",
         inputSchema={
@@ -132,9 +161,51 @@ TOOLS = [
             "required": ["title"],
         },
     ),
+
+    # ── PowerPoint Presentations (PPTX) ──
+    # NOTE: _from_prompt is listed FIRST — it should be the default choice.
+    Tool(
+        name="pptx_from_prompt",
+        description=(
+            "PREFERRED tool for creating PowerPoint presentations. Generate a "
+            "complete, professionally formatted .pptx file from a natural language "
+            "prompt. Use this whenever the user asks you to create, make, draft, or "
+            "generate any presentation from a description, topic, source text, or "
+            "instructions. Simply pass the full content as the 'prompt' parameter — "
+            "no need to structure slides yourself. This tool handles all slide "
+            "layout and formatting automatically."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": (
+                        "The full content, text, or instructions to generate the presentation from. "
+                        "This can be: the user's request verbatim, topic to present about, "
+                        "article text to turn into slides, or any natural language description. "
+                        "Include all the information you want in the presentation."
+                    ),
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "Output filename (e.g., 'quarterly_review.pptx'). Defaults to 'presentation.pptx'.",
+                },
+                "theme": {"type": "string", "default": "corporate"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["prompt"],
+        },
+    ),
     Tool(
         name="pptx_create",
-        description="Create a PowerPoint presentation (.pptx) with slides and theme styling. Use this for structured slide data with titles, bullets, tables.",
+        description=(
+            "Create a PowerPoint presentation (.pptx) from PRE-STRUCTURED slide "
+            "data only. Requires an explicit 'slides' array with slide objects "
+            "containing titles, bullets, tables already prepared. Do NOT use this "
+            "for natural language requests — use 'pptx_from_prompt' instead, "
+            "which is simpler and handles slide layout automatically."
+        ),
         inputSchema={
             "type": "object",
             "additionalProperties": True,
@@ -168,20 +239,6 @@ TOOLS = [
         },
     ),
     Tool(
-        name="pptx_generate_from_prompt",
-        description="Generate a PowerPoint presentation from a natural language description.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "prompt": {"type": "string"},
-                "filename": {"type": "string"},
-                "theme": {"type": "string", "default": "corporate"},
-                "session_id": {"type": "string"},
-            },
-            "required": ["prompt"],
-        },
-    ),
-    Tool(
         name="pptx_export",
         description="Export a presentation in multiple formats (pptx, odp).",
         inputSchema={
@@ -196,6 +253,8 @@ TOOLS = [
             "required": ["title"],
         },
     ),
+
+    # ── Utility Tools ──
     Tool(
         name="list_themes_tool",
         description="List all available themes for document generation.",
