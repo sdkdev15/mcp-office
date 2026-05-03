@@ -250,7 +250,3 @@ class ExcelGenerator:
             self._add_sheet(wb, sheet_data)
 
         return self._save_workbook(wb)
-
-
-# Global generator instance
-excel_generator = ExcelGenerator()

@@ -608,7 +608,3 @@ class DOCXGenerator:
         self.doc.save(buffer)
         buffer.seek(0)
         return buffer.getvalue()
-
-
-# Global generator instance
-docx_generator = DOCXGenerator()

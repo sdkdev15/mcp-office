@@ -13,7 +13,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.chart import XL_CHART_TYPE
 from pptx.oxml.ns import qn
-from pptx.oxml import OxmlElement
+from pptx.oxml.xmlchemy import OxmlElement
 
 from src.styles.themes import get_theme
 from src.utils.logger import get_logger
@@ -41,6 +41,11 @@ def hex_to_rgbcolor(hex_color: str) -> RGBColor:
 class PPTXGenerator:
     """Generates PowerPoint presentations with rich slides, charts, and styling."""
 
+    SLIDE_WIDTH_STANDARD_INCHES = 10.0
+    SLIDE_HEIGHT_STANDARD_INCHES = 7.5
+    SLIDE_WIDTH_WIDESCREEN_INCHES = 13.33
+    SLIDE_HEIGHT_WIDESCREEN_INCHES = 7.5
+
     def __init__(self, theme_name: str = "corporate"):
         self.theme_name = theme_name
         self.theme = get_theme(theme_name)
@@ -51,6 +56,7 @@ class PPTXGenerator:
         title: str = "Presentation",
         slide_size: str = "widescreen",
         metadata: Optional[dict] = None,
+        slides: Optional[list[dict]] = None,
     ) -> bytes:
         """Create a new PowerPoint presentation.
 
@@ -58,6 +64,7 @@ class PPTXGenerator:
             title: Presentation title.
             slide_size: Slide size (widescreen for 16:9, standard for 4:3).
             metadata: Optional document metadata.
+            slides: Optional list of slides to add.
 
         Returns:
             Presentation content as bytes.
@@ -66,11 +73,11 @@ class PPTXGenerator:
 
         # Set slide size
         if slide_size.lower() == "standard":
-            self.pres.slide_width = Inches(10)
-            self.pres.slide_height = Inches(7.5)
+            self.pres.slide_width = Inches(self.SLIDE_WIDTH_STANDARD_INCHES)
+            self.pres.slide_height = Inches(self.SLIDE_HEIGHT_STANDARD_INCHES)
         else:  # widescreen
-            self.pres.slide_width = Inches(13.33)
-            self.pres.slide_height = Inches(7.5)
+            self.pres.slide_width = Inches(self.SLIDE_WIDTH_WIDESCREEN_INCHES)
+            self.pres.slide_height = Inches(self.SLIDE_HEIGHT_WIDESCREEN_INCHES)
 
         # Apply metadata
         if metadata:
@@ -78,6 +85,16 @@ class PPTXGenerator:
 
         # Add title slide
         self.add_slide("title", title=title)
+
+        # Add content slides
+        if slides:
+            for slide_data in slides:
+                self.add_slide(
+                    layout=slide_data.get("layout", "title_and_content"),
+                    title=slide_data.get("title"),
+                    content=slide_data.get("content"),
+                    bullets=slide_data.get("bullets"),
+                )
 
         return self._save_presentation()
 
@@ -123,10 +140,11 @@ class PPTXGenerator:
         # Set title
         if title:
             try:
-                slide.shapes.title.text = title
-                self._style_title(slide.shapes.title)
-            except (AttributeError, IndexError):
-                pass
+                if getattr(slide.shapes, 'title', None):
+                    slide.shapes.title.text = title
+                    self._style_title(slide.shapes.title)
+            except Exception as e:
+                log.warning(f"Failed to set title for slide '{title}': {e}")
 
         # Add content
         if content or bullets:
@@ -166,7 +184,8 @@ class PPTXGenerator:
                         # Style the run that was created by setting p.text
                         for run in p.runs:
                             self._style_run(run)
-            except (IndexError, AttributeError):
+            except Exception as e:
+                log.warning(f"Failed to format body text: {e}")
                 if content or bullets:
                     text = content or "\n".join(bullets) if bullets else ""
                     self.add_text_box(slide_idx, text, left=1, top=2)
@@ -310,8 +329,8 @@ class PPTXGenerator:
         log.info(f"Creating presentation from prompt: {prompt[:100]}...")
 
         self.pres = Presentation()
-        self.pres.slide_width = Inches(13.33)
-        self.pres.slide_height = Inches(7.5)
+        self.pres.slide_width = Inches(self.SLIDE_WIDTH_WIDESCREEN_INCHES)
+        self.pres.slide_height = Inches(self.SLIDE_HEIGHT_WIDESCREEN_INCHES)
 
         # Extract title from prompt if generic
         doc_title = title if title != "Presentation" else self._extract_title(prompt)
@@ -473,8 +492,4 @@ class PPTXGenerator:
         buffer = io.BytesIO()
         self.pres.save(buffer)
         buffer.seek(0)
-        return buffer.getvalue()
-
-
-# Global generator instance
-pptx_generator = PPTXGenerator()
+        return buffer.getvalue()

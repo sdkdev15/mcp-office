@@ -290,14 +290,17 @@ async def _excel_create(args: dict) -> list[TextContent]:
     gen = ExcelGenerator(args.get("theme", "corporate"))
     template_path = args.get("template_path")
     
-    if template_path:
-        data = gen.create_from_template(
-            template_path,
-            args["sheets"],
-            args.get("metadata"),
-        )
-    else:
-        data = gen.create_workbook(args["sheets"], args.get("metadata"))
+    def _sync_create():
+        if template_path:
+            return gen.create_from_template(
+                template_path,
+                args["sheets"],
+                args.get("metadata"),
+            )
+        else:
+            return gen.create_workbook(args["sheets"], args.get("metadata"))
+            
+    data = await asyncio.to_thread(_sync_create)
     
     filename = args["filename"]
     if not filename.endswith(".xlsx"):
@@ -314,14 +317,14 @@ async def _excel_export(args: dict) -> list[TextContent]:
 
     if fmt in ("xlsx", "all"):
         gen = ExcelGenerator()
-        data = gen.create_workbook(args["sheets"])
+        data = await asyncio.to_thread(gen.create_workbook, args["sheets"])
         filename = file_handler.generate_filename("export", ".xlsx")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
 
     if fmt in ("ods", "all"):
         gen = ODFGenerator()
-        data = gen.create_spreadsheet(args["sheets"])
+        data = await asyncio.to_thread(gen.create_spreadsheet, args["sheets"])
         filename = file_handler.generate_filename("export", ".ods")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
@@ -335,38 +338,41 @@ async def _docx_create(args: dict) -> list[TextContent]:
     content_paragraphs = args.get("content_paragraphs")
     tables = args.get("tables")
     
-    if template_path:
-        data = gen.create_from_template(
-            template_path,
-            title=args.get("title", "Document"),
-            content_paragraphs=content_paragraphs,
-            tables=tables,
-            metadata=args.get("metadata"),
-        )
-    else:
-        from docx import Document
-        gen.doc = Document()
-        gen._setup_page(args.get("page_size", "A4"), args.get("orientation", "portrait"))
-        gen._apply_theme_styles()
-        
-        if args.get("metadata"):
-            gen._apply_metadata(args["metadata"])
-        
-        title = args.get("title", "Document")
-        gen.add_heading(title, level=1)
-        gen.add_horizontal_line()
-        
-        if content_paragraphs:
-            combined = "\n".join(content_paragraphs)
-            gen._parse_and_render(combined)
-        
-        if tables:
-            for table_data in tables:
-                headers = table_data.get("headers", [])
-                rows = table_data.get("rows", [])
-                gen.add_table(headers, rows)
-        
-        data = gen._save_document()
+    def _sync_create():
+        if template_path:
+            return gen.create_from_template(
+                template_path,
+                title=args.get("title", "Document"),
+                content_paragraphs=content_paragraphs,
+                tables=tables,
+                metadata=args.get("metadata"),
+            )
+        else:
+            from docx import Document
+            gen.doc = Document()
+            gen._setup_page(args.get("page_size", "A4"), args.get("orientation", "portrait"))
+            gen._apply_theme_styles()
+            
+            if args.get("metadata"):
+                gen._apply_metadata(args["metadata"])
+            
+            title = args.get("title", "Document")
+            gen.add_heading(title, level=1)
+            gen.add_horizontal_line()
+            
+            if content_paragraphs:
+                combined = "\n".join(content_paragraphs)
+                gen._parse_and_render(combined)
+            
+            if tables:
+                for table_data in tables:
+                    headers = table_data.get("headers", [])
+                    rows = table_data.get("rows", [])
+                    gen.add_table(headers, rows)
+            
+            return gen._save_document()
+            
+    data = await asyncio.to_thread(_sync_create)
     
     filename = args["filename"]
     if not filename.endswith(".docx"):
@@ -379,7 +385,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
 async def _docx_generate_from_prompt(args: dict) -> list[TextContent]:
     gen = DOCXGenerator(args.get("theme", "corporate"))
     title = args.get("filename") or "Generated Document"
-    data = gen.create_from_prompt(args["prompt"], title)
+    data = await asyncio.to_thread(gen.create_from_prompt, args["prompt"], title)
     filename = args.get("filename") or "document.docx"
     if not filename.endswith(".docx"):
         filename += ".docx"
@@ -396,16 +402,19 @@ async def _docx_export(args: dict) -> list[TextContent]:
 
     if fmt in ("docx", "all"):
         gen = DOCXGenerator(args.get("theme", "corporate"))
-        data = gen.create_document(title, metadata=args.get("metadata"))
+        data = await asyncio.to_thread(gen.create_document, title, metadata=args.get("metadata"))
         filename = file_handler.generate_filename(title, ".docx")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
 
     if fmt in ("odt", "all"):
-        gen = ODFGenerator()
-        odt_doc = gen.create_text_document(title, args.get("metadata"))
-        gen.add_paragraph_to_odt(odt_doc, f"Generated: {title}")
-        data = gen.save_odt(odt_doc)
+        def _sync_create_odt():
+            gen = ODFGenerator()
+            odt_doc = gen.create_text_document(title, args.get("metadata"))
+            gen.add_paragraph_to_odt(odt_doc, f"Generated: {title}")
+            return gen.save_odt(odt_doc)
+            
+        data = await asyncio.to_thread(_sync_create_odt)
         filename = file_handler.generate_filename(title, ".odt")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
@@ -418,46 +427,22 @@ async def _pptx_create(args: dict) -> list[TextContent]:
     template_path = args.get("template_path")
     slides = args.get("slides")
     
-    if template_path:
-        data = gen.create_from_template(
-            template_path,
-            slides=slides,
-            metadata=args.get("metadata"),
-        )
-    else:
-        # Create presentation from scratch
-        from pptx import Presentation
-        from pptx.util import Inches
-        gen.pres = Presentation()
-        
-        # Set slide size
-        slide_size = args.get("slide_size", "widescreen")
-        if slide_size.lower() == "standard":
-            gen.pres.slide_width = Inches(10)
-            gen.pres.slide_height = Inches(7.5)
+    def _sync_create():
+        if template_path:
+            return gen.create_from_template(
+                template_path,
+                slides=slides,
+                metadata=args.get("metadata"),
+            )
         else:
-            gen.pres.slide_width = Inches(13.33)
-            gen.pres.slide_height = Inches(7.5)
-        
-        # Apply metadata
-        if args.get("metadata"):
-            gen._apply_metadata(args["metadata"])
-        
-        # Add title slide
-        title = args.get("title", "Presentation")
-        gen.add_slide("title", title=title)
-        
-        # Add content slides
-        if slides:
-            for slide_data in slides:
-                gen.add_slide(
-                    layout=slide_data.get("layout", "title_and_content"),
-                    title=slide_data.get("title"),
-                    content=slide_data.get("content"),
-                    bullets=slide_data.get("bullets"),
-                )
-        
-        data = gen._save_presentation()
+            return gen.create_presentation(
+                title=args.get("title", "Presentation"),
+                slide_size=args.get("slide_size", "widescreen"),
+                metadata=args.get("metadata"),
+                slides=slides
+            )
+            
+    data = await asyncio.to_thread(_sync_create)
     
     filename = args["filename"]
     if not filename.endswith(".pptx"):
@@ -470,7 +455,7 @@ async def _pptx_create(args: dict) -> list[TextContent]:
 async def _pptx_generate_from_prompt(args: dict) -> list[TextContent]:
     gen = PPTXGenerator(args.get("theme", "corporate"))
     title = args.get("filename") or "Generated Presentation"
-    data = gen.create_from_prompt(args["prompt"], title)
+    data = await asyncio.to_thread(gen.create_from_prompt, args["prompt"], title)
     filename = args.get("filename") or "presentation.pptx"
     if not filename.endswith(".pptx"):
         filename += ".pptx"
@@ -487,15 +472,18 @@ async def _pptx_export(args: dict) -> list[TextContent]:
 
     if fmt in ("pptx", "all"):
         gen = PPTXGenerator(args.get("theme", "corporate"))
-        data = gen.create_presentation(title, metadata=args.get("metadata"))
+        data = await asyncio.to_thread(gen.create_presentation, title, metadata=args.get("metadata"))
         filename = file_handler.generate_filename(title, ".pptx")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
 
     if fmt in ("odp", "all"):
-        gen = ODFGenerator()
-        odp_doc = gen.create_presentation(title, args.get("metadata"))
-        data = gen.save_odp(odp_doc)
+        def _sync_create_odp():
+            gen = ODFGenerator()
+            odp_doc = gen.create_presentation(title, args.get("metadata"))
+            return gen.save_odp(odp_doc)
+            
+        data = await asyncio.to_thread(_sync_create_odp)
         filename = file_handler.generate_filename(title, ".odp")
         file_info = await file_handler.save_file(data, filename, session_id)
         results.append(format_file_result(file_info))
