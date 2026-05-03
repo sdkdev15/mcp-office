@@ -436,9 +436,9 @@ class DOCXGenerator:
                 is_heading = True
                 heading_text = line.rstrip(":").strip()
             elif not line.startswith(("-", "*", "•", "1.", "2.", "3.")):
-                # Check for "Heading - content" pattern
-                dash_match = re.match(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+-\s+(.+)$", line)
-                if dash_match and len(dash_match.group(1)) > 5:
+                # Check for "Heading - content" pattern (lenient)
+                dash_match = re.match(r"^([A-Z][^-\n]{5,}?)\s+-\s+(.+)$", line)
+                if dash_match:
                     is_heading = True
                     heading_text = dash_match.group(1).strip()
 
