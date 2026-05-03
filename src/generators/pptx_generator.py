@@ -5,11 +5,14 @@ from __future__ import annotations
 import io
 from typing import Any, Optional
 
+from lxml import etree
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.chart import XL_CHART_TYPE
+from pptx.oxml.ns import qn
+from pptx.oxml import OxmlElement
 
 from src.styles.themes import get_theme
 from src.utils.logger import get_logger
@@ -127,24 +130,39 @@ class PPTXGenerator:
         # Add content
         if content or bullets:
             try:
-                body_shape = slide.placeholders[1]
+                body_shape = None
+                for i, ph in enumerate(slide.placeholders):
+                    if ph.placeholder_type.name == "BODY":
+                        body_shape = slide.placeholders[i]
+                        break
+                if body_shape is None:
+                    body_shape = slide.placeholders[1]
+
                 tf = body_shape.text_frame
                 tf.clear()
 
                 if content:
                     p = tf.add_paragraph()
-                    p.text = content
-                    self._style_body_text(p)
+                    run = p.add_run()
+                    run.text = content
+                    self._style_run(run)
 
                 if bullets:
-                    for bullet in bullets:
+                    for idx, bullet in enumerate(bullets):
                         p = tf.add_paragraph()
-                        p.text = bullet
+                        run = p.add_run()
+                        run.text = bullet
                         p.level = 0
-                        self._style_body_text(p)
+                        # Set bullet formatting via XML
+                        pPr = p._p.get_or_add_pPr()
+                        buChar = OxmlElement('a:buChar')
+                        buChar.set('char', '•')
+                        pPr.append(buChar)
+                        self._style_run(run)
             except (IndexError, AttributeError):
                 if content or bullets:
-                    self.add_text_box(slide_idx, content or str(bullets), left=1, top=2)
+                    text = content or "\n".join(bullets) if bullets else ""
+                    self.add_text_box(slide_idx, text, left=1, top=2)
 
         return slide_idx
 
@@ -330,17 +348,19 @@ class PPTXGenerator:
         """Apply theme styling to a title shape."""
         for paragraph in shape.text_frame.paragraphs:
             paragraph.alignment = PP_ALIGN.CENTER
+            # If no runs exist, add one
+            if not paragraph.runs:
+                paragraph.add_run()
             for run in paragraph.runs:
                 run.font.name = self.theme.fonts.heading
                 run.font.size = Pt(self.theme.fonts.heading1_size)
                 run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.primary)
 
-    def _style_body_text(self, paragraph) -> None:
-        """Apply theme styling to body text."""
-        for run in paragraph.runs:
-            run.font.name = self.theme.fonts.body
-            run.font.size = Pt(self.theme.fonts.body_size)
-            run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text)
+    def _style_run(self, run) -> None:
+        """Apply theme styling to a single run."""
+        run.font.name = self.theme.fonts.body
+        run.font.size = Pt(self.theme.fonts.body_size)
+        run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text)
 
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply presentation metadata."""
