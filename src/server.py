@@ -502,29 +502,30 @@ async def run_sse_server():
 
     async def handle_sse(request: Request):
         log.info("=== New SSE connection ===")
-        from starlette.responses import Response
+        from starlette.responses import StreamingResponse
 
-        try:
-            async with sse_transport.connect_sse(
-                request.scope, request.receive, request._send
-            ) as (read_stream, write_stream):
-                log.info("SSE streams established, starting app.run()")
-                await app.run(
-                    read_stream,
-                    write_stream,
-                    InitializationOptions(
-                        server_name="mcp-office",
-                        server_version="1.0.0",
-                        capabilities=ServerCapabilities(),
-                    ),
-                )
-                log.info("app.run() completed normally")
-        except Exception as e:
-            log.error(f"SSE connection error: {e}")
+        async def sse_generator():
+            try:
+                async with sse_transport.connect_sse(
+                    request.scope, request.receive, request._send
+                ) as (read_stream, write_stream):
+                    log.info("SSE streams established, starting app.run()")
+                    await app.run(
+                        read_stream,
+                        write_stream,
+                        InitializationOptions(
+                            server_name="mcp-office",
+                            server_version="1.0.0",
+                            capabilities=ServerCapabilities(),
+                        ),
+                    )
+                    log.info("app.run() completed normally")
+            except Exception as e:
+                log.error(f"SSE connection error: {e}")
 
-        # Return a Response to satisfy Starlette routing
-        # (SSE events already sent via request._send inside connect_sse)
-        return Response(status_code=200)
+        # StreamingResponse satisfies Starlette's Route handler
+        # The actual SSE events are sent via request._send inside connect_sse
+        return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
     # ASGI app for messages — handle_post_message manages its own response via send()
     async def messages_asgi(scope, receive, send):
