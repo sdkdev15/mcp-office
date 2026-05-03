@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from typing import Any, Optional
 
 from lxml import etree
@@ -139,26 +140,32 @@ class PPTXGenerator:
                     body_shape = slide.placeholders[1]
 
                 tf = body_shape.text_frame
-                tf.clear()
+
+                # Remove existing paragraphs
+                while tf.paragraphs:
+                    existing_p = tf.paragraphs[0]
+                    tf._remove(existing_p._p)
 
                 if content:
                     p = tf.add_paragraph()
-                    run = p.add_run()
-                    run.text = content
-                    self._style_run(run)
+                    p.text = content
+                    # Style the run that was created by setting p.text
+                    for run in p.runs:
+                        self._style_run(run)
 
                 if bullets:
                     for idx, bullet in enumerate(bullets):
                         p = tf.add_paragraph()
-                        run = p.add_run()
-                        run.text = bullet
+                        p.text = bullet
                         p.level = 0
                         # Set bullet formatting via XML
                         pPr = p._p.get_or_add_pPr()
                         buChar = OxmlElement('a:buChar')
-                        buChar.set('char', '•')
+                        buChar.set('char', '\u2022')
                         pPr.append(buChar)
-                        self._style_run(run)
+                        # Style the run that was created by setting p.text
+                        for run in p.runs:
+                            self._style_run(run)
             except (IndexError, AttributeError):
                 if content or bullets:
                     text = content or "\n".join(bullets) if bullets else ""
@@ -296,16 +303,85 @@ class PPTXGenerator:
         fill.fore_color.rgb = hex_to_rgbcolor(bg_color)
 
     def create_from_prompt(self, prompt: str, title: str = "Presentation") -> bytes:
-        """Create a presentation from a natural language prompt."""
+        """Create a presentation from a natural language prompt.
+
+        Parses the prompt to extract slides from "Heading - content" lines.
+        """
         log.info(f"Creating presentation from prompt: {prompt[:100]}...")
 
         self.pres = Presentation()
         self.pres.slide_width = Inches(13.33)
         self.pres.slide_height = Inches(7.5)
-        self.add_slide("title", title=title)
-        self.add_slide("title_and_content", title="Overview", content=prompt)
+
+        # Extract title from prompt if generic
+        doc_title = title if title != "Presentation" else self._extract_title(prompt)
+        self.add_slide("title", title=doc_title)
+
+        # Parse prompt into slides
+        self._parse_prompt_to_slides(prompt)
 
         return self._save_presentation()
+
+    def _extract_title(self, text: str) -> str:
+        """Extract presentation title from prompt text."""
+        lines = text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if re.match(r"^(Buat|Format|Gunakan|Create|Generate)", line, re.IGNORECASE):
+                continue
+            if line and len(line) > 10:
+                return line.rstrip(":").strip()
+        return "Presentation"
+
+    def _parse_prompt_to_slides(self, text: str) -> None:
+        """Parse prompt text into slides."""
+        lines = text.strip().split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Skip instruction lines
+            if re.match(r"^(Buat|Format|Gunakan|Create|Generate|Silakan|Please)", line, re.IGNORECASE):
+                continue
+
+            # Detect "Heading - content" pattern (lenient: first word capitalized, 2+ words before dash)
+            dash_match = re.match(r"^([A-Z][^-\n]{5,}?)\s+-\s+(.+)$", line)
+            if dash_match:
+                slide_title = dash_match.group(1).strip()
+                content_text = dash_match.group(2).strip()
+
+                # Try to split content into bullets (comma-separated)
+                if "," in content_text and len(content_text) > 50:
+                    parts = [p.strip() for p in content_text.split(",") if p.strip()]
+                    if len(parts) > 1:
+                        self.add_slide(
+                            title=slide_title,
+                            bullets=parts,
+                        )
+                        continue
+
+                self.add_slide(
+                    title=slide_title,
+                    content=content_text,
+                )
+                continue
+
+            # ALL CAPS heading
+            if line.isupper() and not line.startswith(("-", "*", "•")):
+                self.add_slide(title=line.title())
+                continue
+
+            # Bullet points - add to last slide
+            bullet_match = re.match(r"^[-*•]\s+(.*)", line)
+            if bullet_match:
+                # Would need to append to last slide, skip for now
+                continue
+
+            # Regular paragraph - treat as content slide
+            if len(line) > 20:
+                self.add_slide(title="Content", content=line)
 
     def create_from_template(
         self,

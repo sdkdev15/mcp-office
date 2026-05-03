@@ -421,17 +421,36 @@ class DOCXGenerator:
                 flush_paragraphs()
                 continue
 
-            # Detect section heading (ALL CAPS or ends with colon, not a bullet)
-            if (line.isupper() or line.endswith(":")) and not line.startswith(("-", "*", "•", "1.", "2.", "3.")):
+            # Detect section heading patterns:
+            # 1. ALL CAPS
+            # 2. Ends with colon
+            # 3. "Heading - description" pattern (title case word followed by dash)
+            is_heading = False
+            heading_text = None
+            dash_match = None
+
+            if line.isupper() and not line.startswith(("-", "*", "•")):
+                is_heading = True
+                heading_text = line.title()
+            elif line.endswith(":") and not line.startswith(("-", "*", "•")):
+                is_heading = True
+                heading_text = line.rstrip(":").strip()
+            elif not line.startswith(("-", "*", "•", "1.", "2.", "3.")):
+                # Check for "Heading - content" pattern
+                dash_match = re.match(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+-\s+(.+)$", line)
+                if dash_match and len(dash_match.group(1)) > 5:
+                    is_heading = True
+                    heading_text = dash_match.group(1).strip()
+
+            if is_heading and heading_text:
                 flush_bullets()
                 flush_paragraphs()
                 flush_table()
-                heading_text = line.rstrip(":").strip()
-                # Convert to title case if it was uppercase
-                if line.isupper():
-                    heading_text = heading_text.title()
                 self.add_heading(heading_text, level=2)
                 current_section = heading_text
+                # If there was content after the dash, add it as a paragraph
+                if dash_match and dash_match.group(2):
+                    self.add_paragraph(dash_match.group(2).strip(), space_after=6)
                 continue
 
             # Detect bullet points
