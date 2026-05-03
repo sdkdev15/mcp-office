@@ -6,13 +6,15 @@ import io
 import re
 from typing import Any, Optional
 
-from docx import Document, Document as DocxDocument
+from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 
 from src.styles.themes import get_theme
+from src.utils.colors import hex_to_rgbcolor_tuple
+from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_heading_level, ValidationError
 
@@ -20,18 +22,8 @@ log = get_logger("docx_generator")
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
-    """Convert hex color string to RGBColor for python-docx.
-    
-    Args:
-        hex_color: Hex color string (e.g., '1E40AF' or '#1E40AF').
-    
-    Returns:
-        RGBColor instance.
-    """
-    c = hex_color.lstrip("#")
-    r = int(c[0:2], 16)
-    g = int(c[2:4], 16)
-    b = int(c[4:6], 16)
+    """Convert hex color string to RGBColor for python-docx."""
+    r, g, b = hex_to_rgbcolor_tuple(hex_color)
     return RGBColor(r, g, b)
 
 
@@ -71,6 +63,52 @@ class DOCXGenerator:
 
         # Add title
         self.add_heading(title, level=1)
+
+        return self._save_document()
+
+    def create_document_with_content(
+        self,
+        title: str = "Document",
+        page_size: str = "A4",
+        orientation: str = "portrait",
+        metadata: Optional[dict] = None,
+        content_paragraphs: Optional[list[str]] = None,
+        tables: Optional[list[dict]] = None,
+    ) -> bytes:
+        """Create a Word document with optional inline content.
+
+        Higher-level API that combines document creation with paragraph
+        and table insertion in a single call.
+
+        Args:
+            title: Document title.
+            page_size: Page size (A4, Letter, Legal).
+            orientation: Page orientation (portrait, landscape).
+            metadata: Optional document metadata.
+            content_paragraphs: Optional list of paragraph texts.
+            tables: Optional list of table dicts with headers and rows.
+
+        Returns:
+            Document content as bytes.
+        """
+        self.doc = Document()
+        self._setup_page(page_size, orientation)
+        self._apply_theme_styles()
+
+        if metadata:
+            self._apply_metadata(metadata)
+
+        self.add_heading(title, level=1)
+
+        if content_paragraphs:
+            for text in content_paragraphs:
+                self.add_paragraph(text)
+
+        if tables:
+            for table_data in tables:
+                headers = table_data.get("headers", [])
+                rows = table_data.get("rows", [])
+                self.add_table(headers, rows)
 
         return self._save_document()
 
@@ -520,21 +558,7 @@ class DOCXGenerator:
 
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply document metadata."""
-        props = self.doc.core_properties
-        if metadata.get("author"):
-            props.author = metadata["author"]
-        if metadata.get("company"):
-            props.company = metadata["company"]
-        if metadata.get("subject"):
-            props.subject = metadata["subject"]
-        if metadata.get("title"):
-            props.title = metadata["title"]
-        if metadata.get("keywords"):
-            props.keywords = metadata["keywords"]
-        if metadata.get("category"):
-            props.category = metadata["category"]
-        if metadata.get("comments"):
-            props.description = metadata["comments"]
+        apply_metadata(self.doc.core_properties, metadata)
 
     def create_from_template(
         self,
@@ -567,26 +591,17 @@ class DOCXGenerator:
 
         # Replace first heading with title if found
         if title:
-            for element in self.doc.element.body:
-                tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
-                if tag == "p":
-                    from docx.oxml.ns import nsdecls
-                    from lxml import etree
-                    runs = element.findall(".//{%s}r" % nsdecls("w").split()[0].rstrip(">"))
-                    if runs:
-                        # Check if this is a heading style
-                        pPr = element.find(".//{%s*pPr" % nsdecls("w").split()[0].rstrip(">"))
-                        if pPr is not None:
-                            pStyle = pPr.find("{%s}pStyle" % nsdecls("w").split()[0].rstrip(">"))
-                            if pStyle is not None and pStyle.get("{%s}val" % nsdecls("w").split()[0].rstrip(">")):
-                                style_val = pStyle.get("{%s}val" % nsdecls("w").split()[0].rstrip(">"))
-                                if style_val.startswith("Heading"):
-                                    # Replace text
-                                    for run in element.iterfind(".//{%s}r" % nsdecls("w").split()[0].rstrip(">")):
-                                        t = run.find("{%s}t" % nsdecls("w").split()[0].rstrip(">"))
-                                        if t is not None:
-                                            t.text = title
-                                    break
+            for para in self.doc.paragraphs:
+                if para.style and para.style.name and para.style.name.startswith("Heading"):
+                    # Found a heading — replace its text while preserving formatting
+                    if para.runs:
+                        # Clear all runs except the first, set title on first
+                        para.runs[0].text = title
+                        for run in para.runs[1:]:
+                            run.text = ""
+                    else:
+                        para.text = title
+                    break
 
         # Append content paragraphs
         if content_paragraphs:

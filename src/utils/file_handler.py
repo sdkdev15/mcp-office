@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+from src.utils.formatting import human_readable_size
 from src.utils.logger import get_logger
 
 log = get_logger("file_handler")
@@ -191,20 +192,5 @@ class FileHandler:
 
     @staticmethod
     def _human_readable_size(size_bytes: int) -> str:
-        """Convert bytes to human-readable size string.
-
-        Args:
-            size_bytes: Size in bytes.
-
-        Returns:
-            Human-readable size string.
-        """
-        for unit in ["B", "KB", "MB", "GB"]:
-            if size_bytes < 1024:
-                return f"{size_bytes:.1f} {unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.1f} TB"
-
-
-# Global file handler instance
-file_handler = FileHandler()
+        """Convert bytes to human-readable size string."""
+        return human_readable_size(size_bytes)

@@ -10,11 +10,11 @@ RUN pip install --no-cache-dir \
     python-docx \
     python-pptx \
     odfpy \
+    lxml \
     mcp \
     loguru \
     pydantic \
     pydantic-settings \
-    aiofiles \
     aiohttp \
     uvicorn \
     starlette
@@ -28,6 +28,7 @@ USER appuser
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser run_server.py ./
 COPY --chown=appuser:appuser pyproject.toml ./
 
 # Environment variables
@@ -38,7 +39,8 @@ ENV PYTHONUNBUFFERED=1 \
     RATE_LIMIT_REQUESTS=20 \
     RATE_LIMIT_WINDOW=60 \
     MCP_TRANSPORT=stdio \
-    LOCALE=en_US
+    LOCALE=en_US \
+    DEBUG=false
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

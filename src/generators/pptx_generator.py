@@ -6,7 +6,6 @@ import io
 import re
 from typing import Any, Optional
 
-from lxml import etree
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -16,6 +15,8 @@ from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 
 from src.styles.themes import get_theme
+from src.utils.colors import hex_to_rgbcolor_tuple
+from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_slide_layout, ValidationError
 
@@ -23,18 +24,8 @@ log = get_logger("pptx_generator")
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
-    """Convert hex color string to RGBColor for python-pptx.
-
-    Args:
-        hex_color: Hex color string (e.g., '1E40AF' or '#1E40AF').
-
-    Returns:
-        RGBColor instance.
-    """
-    c = hex_color.lstrip("#")
-    r = int(c[0:2], 16)
-    g = int(c[2:4], 16)
-    b = int(c[4:6], 16)
+    """Convert hex color string to RGBColor for python-pptx."""
+    r, g, b = hex_to_rgbcolor_tuple(hex_color)
     return RGBColor(r, g, b)
 
 
@@ -150,30 +141,44 @@ class PPTXGenerator:
         if content or bullets:
             try:
                 body_shape = None
-                for i, ph in enumerate(slide.placeholders):
-                    if ph.placeholder_type.name == "BODY":
-                        body_shape = slide.placeholders[i]
+                # Find body placeholder by index (idx=1 is the standard body)
+                for ph in slide.placeholders:
+                    if ph.placeholder_format.idx == 1:
+                        body_shape = ph
                         break
-                if body_shape is None:
+                if body_shape is None and len(slide.placeholders) > 1:
                     body_shape = slide.placeholders[1]
+
+                if body_shape is None:
+                    raise ValueError("No body placeholder found")
 
                 tf = body_shape.text_frame
 
-                # Remove existing paragraphs
-                while tf.paragraphs:
-                    existing_p = tf.paragraphs[0]
-                    tf._remove(existing_p._p)
+                # Clear existing paragraphs (keep first, remove rest, then clear first)
+                for p in list(tf.paragraphs)[1:]:
+                    tf._txBody.remove(p._p)
+                # Clear the mandatory first paragraph's text
+                if tf.paragraphs:
+                    tf.paragraphs[0].clear()
 
+                first_para = True
                 if content:
-                    p = tf.add_paragraph()
+                    if first_para:
+                        p = tf.paragraphs[0]
+                        first_para = False
+                    else:
+                        p = tf.add_paragraph()
                     p.text = content
-                    # Style the run that was created by setting p.text
                     for run in p.runs:
                         self._style_run(run)
 
                 if bullets:
-                    for idx, bullet in enumerate(bullets):
-                        p = tf.add_paragraph()
+                    for bullet in bullets:
+                        if first_para:
+                            p = tf.paragraphs[0]
+                            first_para = False
+                        else:
+                            p = tf.add_paragraph()
                         p.text = bullet
                         p.level = 0
                         # Set bullet formatting via XML
@@ -181,14 +186,15 @@ class PPTXGenerator:
                         buChar = OxmlElement('a:buChar')
                         buChar.set('char', '\u2022')
                         pPr.append(buChar)
-                        # Style the run that was created by setting p.text
                         for run in p.runs:
                             self._style_run(run)
             except Exception as e:
                 log.warning(f"Failed to format body text: {e}")
-                if content or bullets:
-                    text = content or "\n".join(bullets) if bullets else ""
-                    self.add_text_box(slide_idx, text, left=1, top=2)
+                # Fallback: add a text box
+                if content:
+                    self.add_text_box(slide_idx, content, left=1, top=2)
+                elif bullets:
+                    self.add_text_box(slide_idx, "\n".join(bullets), left=1, top=2)
 
         return slide_idx
 
@@ -614,21 +620,7 @@ class PPTXGenerator:
 
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply presentation metadata."""
-        props = self.pres.core_properties
-        if metadata.get("author"):
-            props.author = metadata["author"]
-        if metadata.get("company"):
-            props.company = metadata["company"]
-        if metadata.get("subject"):
-            props.subject = metadata["subject"]
-        if metadata.get("title"):
-            props.title = metadata["title"]
-        if metadata.get("keywords"):
-            props.keywords = metadata["keywords"]
-        if metadata.get("category"):
-            props.category = metadata["category"]
-        if metadata.get("comments"):
-            props.description = metadata["comments"]
+        apply_metadata(self.pres.core_properties, metadata)
 
     def _create_chart_data(self, data: list[list]) -> object:
         """Create chart data from 2D array."""

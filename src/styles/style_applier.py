@@ -6,18 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.chart import BarChart, LineChart, PieChart, AreaChart
 
 from src.styles.themes import Theme, get_theme
-
-
-def _ensure_hex(color: str) -> str:
-    """Ensure color is a valid ARGB hex string for openpyxl (8 chars with alpha)."""
-    if not color:
-        return "FF000000"
-    c = color.lstrip("#")
-    if len(c) == 8:
-        return c
-    if len(c) == 6:
-        return "FF" + c
-    return "FF" + c.ljust(6, "0")
+from src.utils.colors import ensure_argb_hex as _ensure_hex
 
 
 class StyleApplier:

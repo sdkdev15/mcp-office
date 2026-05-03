@@ -206,7 +206,3 @@ class ODFGenerator:
             Document content as bytes.
         """
         return self._save_document(doc)
-
-
-# Global generator instance
-odf_generator = ODFGenerator()

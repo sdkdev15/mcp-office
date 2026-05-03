@@ -132,7 +132,3 @@ class RateLimiter:
 
         if stale_users:
             log.debug(f"Cleaned up {len(stale_users)} stale rate limit entries")
-
-
-# Global rate limiter instance
-rate_limiter = RateLimiter()

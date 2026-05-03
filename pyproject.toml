@@ -21,11 +21,10 @@ dependencies = [
     "python-pptx>=0.6.21",
     "python-docx>=1.1.0",
     "odfpy>=1.4.1",
+    "lxml>=4.9.0",
     # Validation & data models
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    # Async I/O
-    "aiofiles>=23.0.0",
     # Logging
     "loguru>=0.7.0",
     # HTTP for SSE transport

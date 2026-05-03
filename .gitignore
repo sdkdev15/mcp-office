@@ -1,4 +1,27 @@
+# Build & Runtime
 outputs/
+*.egg-info/
+dist/
+build/
+
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
 .pytest_cache/
-test*
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+code_review_graph.html
+.code-review-graph/

@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from src.styles.themes import get_theme
 from src.styles.style_applier import StyleApplier
 from src.utils.data_transformer import DataTransformer
+from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_sheet_data, validate_chart_type, ValidationError
 
@@ -120,27 +121,8 @@ class ExcelGenerator:
         self.style_applier.auto_fit_columns(ws)
 
     def _apply_metadata(self, wb: Workbook, metadata: dict) -> None:
-        """Apply document metadata.
-
-        Args:
-            wb: Workbook instance.
-            metadata: Metadata dictionary.
-        """
-        props = wb.properties
-        if metadata.get("author"):
-            props.creator = metadata["author"]
-        if metadata.get("company"):
-            props.company = metadata["company"]
-        if metadata.get("subject"):
-            props.subject = metadata["subject"]
-        if metadata.get("title"):
-            props.title = metadata["title"]
-        if metadata.get("keywords"):
-            props.keywords = metadata["keywords"]
-        if metadata.get("category"):
-            props.category = metadata["category"]
-        if metadata.get("comments"):
-            props.description = metadata["comments"]
+        """Apply document metadata."""
+        apply_metadata(wb.properties, metadata)
 
     def _save_workbook(self, wb: Workbook) -> bytes:
         """Save workbook to bytes.

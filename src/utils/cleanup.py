@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from src.utils.formatting import human_readable_size
 from src.utils.logger import get_logger
 
 log = get_logger("cleanup")
@@ -141,12 +142,4 @@ class FileCleanup:
     @staticmethod
     def _human_readable_size(size_bytes: int) -> str:
         """Convert bytes to human-readable size string."""
-        for unit in ["B", "KB", "MB", "GB"]:
-            if size_bytes < 1024:
-                return f"{size_bytes:.1f} {unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.1f} TB"
-
-
-# Global cleanup instance
-file_cleanup = FileCleanup()
+        return human_readable_size(size_bytes)

@@ -9,6 +9,9 @@ from typing import Any
 
 from loguru import logger
 
+# Configuration guard — ensure handlers are only added once
+_configured = False
+
 
 class JSONFormatter:
     """Custom formatter that outputs structured JSON logs."""
@@ -25,19 +28,17 @@ class JSONFormatter:
         return json.dumps(log_entry)
 
 
-def get_logger(name: str = "mcp-office") -> logger:
-    """Get a configured loguru logger instance.
+def _configure_once() -> None:
+    """Configure loguru handlers once at first import."""
+    global _configured
+    if _configured:
+        return
+    _configured = True
 
-    Args:
-        name: Logger name prefix.
-
-    Returns:
-        Configured logger instance.
-    """
     # Remove default handler
     logger.remove()
 
-    # Add JSON structured logging to stdout
+    # Add structured logging to stdout
     logger.add(
         sys.stdout,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {name}:{function}:{line} | {message}",
@@ -51,6 +52,20 @@ def get_logger(name: str = "mcp-office") -> logger:
         level="ERROR",
     )
 
+
+# Configure on module import
+_configure_once()
+
+
+def get_logger(name: str = "mcp-office") -> logger:
+    """Get a configured loguru logger instance.
+
+    Args:
+        name: Logger name prefix.
+
+    Returns:
+        Configured logger instance.
+    """
     return logger.bind(name=name)
 
 

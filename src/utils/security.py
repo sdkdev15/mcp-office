@@ -199,9 +199,3 @@ class InputSanitizer:
             True if safe, False otherwise.
         """
         return not any(p.search(text) for p in self._compiled)
-
-
-# Global instances
-audit_trail = AuditTrail()
-pii_redactor = PIIRedactor()
-input_sanitizer = InputSanitizer()

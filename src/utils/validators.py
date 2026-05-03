@@ -93,8 +93,9 @@ def validate_filename(filename: str) -> str:
         safe_name = safe_name.replace(char, "_")
 
     # Ensure it has a valid extension
+    import os.path
     allowed_extensions = {".xlsx", ".ods", ".csv", ".pptx", ".odp", ".docx", ".odt", ".pdf"}
-    _, ext = __import__("os.path").path.splitext(safe_name.lower())
+    _, ext = os.path.splitext(safe_name.lower())
     if ext and ext not in allowed_extensions:
         raise ValidationError("filename", f"Invalid extension '{ext}'. Allowed: {', '.join(allowed_extensions)}")
 
