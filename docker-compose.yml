@@ -6,6 +6,11 @@ services:
     container_name: mcp-office
     environment:
       - OUTPUT_DIR=/app/outputs
+      - S3_ENDPOINT=https://dcs3.psn.co.id
+      - S3_BUCKET_NAME=
+      - S3_REGION=
+      - S3_ACCESS_KEY=
+      - S3_SECRET_KEY=
       - FILE_RETENTION_HOURS=24
       - RATE_LIMIT_REQUESTS=50
       - RATE_LIMIT_WINDOW=60

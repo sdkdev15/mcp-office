@@ -31,6 +31,8 @@ dependencies = [
     "aiohttp>=3.9.0",
     "uvicorn>=0.24.0",
     "starlette>=0.27.0",
+    # S3 Storage
+    "boto3>=1.34.0",
 ]
 
 [project.optional-dependencies]

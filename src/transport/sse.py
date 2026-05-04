@@ -76,7 +76,9 @@ async def run_sse_server(app: Server, file_cleanup: FileCleanup) -> None:
     async def files_asgi(scope, receive, send):
         if scope["type"] != "http":
             return
-        from starlette.responses import FileResponse, PlainTextResponse
+        from starlette.responses import FileResponse, PlainTextResponse, StreamingResponse
+        import boto3
+        from botocore.config import Config
 
         path = scope.get("path", "")
         parts = path.split("/")
@@ -87,9 +89,41 @@ async def run_sse_server(app: Server, file_cleanup: FileCleanup) -> None:
 
         session_id = parts[2]
         filename = "/".join(parts[3:])
-        file_path = (output_dir / session_id / filename).resolve()
+        s3_key = f"{session_id}/{filename}"
+        
+        endpoint = os.environ.get("S3_ENDPOINT")
+        bucket = os.environ.get("S3_BUCKET_NAME")
+        
+        if endpoint and bucket:
+            region = os.environ.get("S3_REGION")
+            access_key = os.environ.get("S3_ACCESS_KEY")
+            secret_key = os.environ.get("S3_SECRET_KEY")
+            
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=Config(s3={'addressing_style': 'path'}, signature_version='s3v4')
+            )
+            try:
+                s3_resp = s3.get_object(Bucket=bucket, Key=s3_key)
+                def generate():
+                    for chunk in s3_resp['Body'].iter_chunks(chunk_size=8192):
+                        yield chunk
+                        
+                content_type = s3_resp.get('ContentType', "application/octet-stream")
+                response = StreamingResponse(generate(), media_type=content_type)
+                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                await response(scope, receive, send)
+                return
+            except Exception as e:
+                log.error(f"S3 download failed for {s3_key}, falling back to local backup: {e}")
 
-        # Path traversal protection: ensure resolved path is within output_dir
+        # Fallback to local .gz backup if S3 failed/not configured
+        file_path = (output_dir / session_id / f"{filename}.gz").resolve()
+
         if not str(file_path).startswith(str(output_dir)):
             log.warning(f"Path traversal attempt blocked: {path}")
             response = PlainTextResponse("Forbidden", status_code=403)
@@ -97,12 +131,25 @@ async def run_sse_server(app: Server, file_cleanup: FileCleanup) -> None:
             return
 
         if not file_path.is_file():
-            response = PlainTextResponse(f"File not found: {filename}", status_code=404)
+            response = PlainTextResponse(f"File not found on S3 and local backup missing: {filename}", status_code=404)
             await response(scope, receive, send)
             return
 
-        log.info(f"File download: {file_path}")
-        response = FileResponse(str(file_path), filename=filename)
+        log.info(f"Serving local backup file uncompressed: {file_path}")
+        
+        import gzip
+        import mimetypes
+        
+        def generate_local_gz():
+            with gzip.open(file_path, 'rb') as f:
+                while chunk := f.read(8192):
+                    yield chunk
+
+        mt, _ = mimetypes.guess_type(filename)
+        mt = mt or "application/octet-stream"
+        
+        response = StreamingResponse(generate_local_gz(), media_type=mt)
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         await response(scope, receive, send)
 
     # Single ASGI router — avoids Starlette Mount 307 redirect on /sse → /sse/

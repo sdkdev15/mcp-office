@@ -220,8 +220,13 @@ Supported template formats: `.xlsx`, `.docx`, `.pptx`
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `OUTPUT_DIR` | `outputs` | Output directory for generated files |
-| `FILE_RETENTION_HOURS` | `24` | Hours before auto-deletion |
+| `S3_ENDPOINT`       | `None`  | Ceph RADOS S3 endpoint (e.g. https://dcs3.psn.co.id) |
+| `S3_BUCKET_NAME`    | `None`  | S3 target bucket |
+| `S3_REGION`         | `None`  | S3 region |
+| `S3_ACCESS_KEY`     | `None`  | S3 access key |
+| `S3_SECRET_KEY`     | `None`  | S3 secret key |
+| `OUTPUT_DIR` | `outputs` | Temporary local cache directory |
+| `FILE_RETENTION_HOURS` | `24` | Hours before local gzip cache is deleted |
 | `RATE_LIMIT_REQUESTS` | `20` | Max requests per window per user |
 | `RATE_LIMIT_WINDOW` | `60` | Rate limit window in seconds |
 | `MCP_TRANSPORT` | `stdio` | Transport mode (stdio or sse) |
