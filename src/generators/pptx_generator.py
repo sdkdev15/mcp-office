@@ -618,8 +618,11 @@ class PPTXGenerator:
         handler(slide)
 
     def _send_to_back(self, element, index=0):
-        """Send a shape element to a specific z-order index."""
-        element.getparent().insert(index, element)
+        """Send a shape element to a specific z-order index.
+        Note: In OOXML <p:spTree>, the first two children MUST be <p:nvGrpSpPr> and <p:grpSpPr>.
+        Therefore, valid shape elements must be inserted starting at index 2 to prevent MS PowerPoint corruption.
+        """
+        element.getparent().insert(2 + index, element)
 
     def _style_title_white(self, slide):
         """Override title text to white."""
