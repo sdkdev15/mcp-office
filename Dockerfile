@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir \
     pydantic-settings \
     aiohttp \
     uvicorn \
-    starlette
+    starlette \
+    boto3
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
@@ -33,19 +34,7 @@ COPY --chown=appuser:appuser pyproject.toml ./
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    OUTPUT_DIR=/app/outputs \
-    S3_ENDPOINT=https://dcs3.psn.co.id \
-    S3_BUCKET_NAME= \
-    S3_REGION= \
-    S3_ACCESS_KEY= \
-    S3_SECRET_KEY= \
-    FILE_RETENTION_HOURS=24 \
-    RATE_LIMIT_REQUESTS=20 \
-    RATE_LIMIT_WINDOW=60 \
-    MCP_TRANSPORT=stdio \
-    LOCALE=en_US \
-    DEBUG=false
+    PYTHONDONTWRITEBYTECODE=1 
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
