@@ -128,6 +128,8 @@ class PPTXGenerator:
         slide = self.pres.slides.add_slide(slide_layout)
         slide_idx = len(self.pres.slides) - 1
 
+        # Premium graphics are deferred to end of slide construction
+
         # Set title
         if title:
             try:
@@ -169,8 +171,6 @@ class PPTXGenerator:
                     else:
                         p = tf.add_paragraph()
                     p.text = content
-                    for run in p.runs:
-                        self._style_run(run)
 
                 if bullets:
                     for bullet in bullets:
@@ -186,8 +186,6 @@ class PPTXGenerator:
                         buChar = OxmlElement('a:buChar')
                         buChar.set('char', '\u2022')
                         pPr.append(buChar)
-                        for run in p.runs:
-                            self._style_run(run)
             except Exception as e:
                 log.warning(f"Failed to format body text: {e}")
                 # Fallback: add a text box
@@ -195,6 +193,7 @@ class PPTXGenerator:
                     self.add_text_box(slide_idx, content, left=1, top=2)
                 elif bullets:
                     self.add_text_box(slide_idx, "\n".join(bullets), left=1, top=2)
+        self._draw_wow_graphics(slide)
 
         return slide_idx
 
@@ -221,12 +220,8 @@ class PPTXGenerator:
 
         run = p.runs[0] if p.runs else p.add_run()
         run.bold = bold
-        run.font.size = Pt(font_size or self.theme.fonts.body_size)
-
         if color:
             run.font.color.rgb = hex_to_rgbcolor(color)
-        else:
-            run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text)
 
     def add_image(
         self,
@@ -605,18 +600,177 @@ class PPTXGenerator:
         for paragraph in shape.text_frame.paragraphs:
             paragraph.alignment = PP_ALIGN.CENTER
             # If no runs exist, add one
-            if not paragraph.runs:
-                paragraph.add_run()
             for run in paragraph.runs:
-                run.font.name = self.theme.fonts.heading
-                run.font.size = Pt(self.theme.fonts.heading1_size)
-                run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.primary)
+                pass
 
-    def _style_run(self, run) -> None:
-        """Apply theme styling to a single run."""
-        run.font.name = self.theme.fonts.body
-        run.font.size = Pt(self.theme.fonts.body_size)
-        run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text)
+        pass
+
+    def _draw_wow_graphics(self, slide) -> None:
+        """Inject theme-specific vector graphics onto the slide."""
+        layout_map = {
+            "corporate": self._layout_corporate,
+            "minimal": self._layout_minimal,
+            "creative": self._layout_creative,
+            "academic": self._layout_academic,
+            "dark": self._layout_dark,
+        }
+        handler = layout_map.get(self.theme_name, self._layout_corporate)
+        handler(slide)
+
+    def _send_to_back(self, element, index=0):
+        """Send a shape element to a specific z-order index."""
+        element.getparent().insert(index, element)
+
+    def _style_title_white(self, slide):
+        """Override title text to white."""
+        from pptx.util import Inches
+        if getattr(slide.shapes, 'title', None):
+            try:
+                t = slide.shapes.title
+                t.top = Inches(0.2)
+                t.left = Inches(0.5)
+                t.width = Inches(12.33)
+                t.height = Inches(0.8)
+                if t.has_text_frame:
+                    for p in t.text_frame.paragraphs:
+                        for run in p.runs:
+                            run.font.color.rgb = hex_to_rgbcolor("FFFFFF")
+            except Exception:
+                pass
+
+    def _style_title_color(self, slide, color: str, left=0.5, top=0.15, width=12.33, height=0.8):
+        """Override title text to a specific color and position."""
+        from pptx.util import Inches
+        if getattr(slide.shapes, 'title', None):
+            try:
+                t = slide.shapes.title
+                t.top = Inches(top)
+                t.left = Inches(left)
+                t.width = Inches(width)
+                t.height = Inches(height)
+                if t.has_text_frame:
+                    for p in t.text_frame.paragraphs:
+                        for run in p.runs:
+                            run.font.color.rgb = hex_to_rgbcolor(color)
+            except Exception:
+                pass
+
+    # ── Corporate: Full-width header bar + accent line + footer ──
+    def _layout_corporate(self, slide):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.util import Inches
+        c = self.theme.colors
+
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(1.2))
+        bg.fill.solid(); bg.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); bg.line.fill.background()
+        self._send_to_back(bg._element, 0)
+
+        accent = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(1.2), Inches(13.33), Inches(0.05))
+        accent.fill.solid(); accent.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); accent.line.fill.background()
+        self._send_to_back(accent._element, 1)
+
+        footer = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(7.1), Inches(13.33), Inches(0.4))
+        footer.fill.solid(); footer.fill.fore_color.rgb = hex_to_rgbcolor(c.table_alt_row); footer.line.fill.background()
+        self._send_to_back(footer._element, 0)
+
+        self._style_title_white(slide)
+
+    # ── Minimal: Thin left accent bar + bottom rule ──
+    def _layout_minimal(self, slide):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.util import Inches
+
+        sidebar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(0.15), Inches(7.5))
+        sidebar.fill.solid(); sidebar.fill.fore_color.rgb = hex_to_rgbcolor("000000"); sidebar.line.fill.background()
+        self._send_to_back(sidebar._element, 0)
+
+        bottom = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(7.0), Inches(12.33), Inches(0.02))
+        bottom.fill.solid(); bottom.fill.fore_color.rgb = hex_to_rgbcolor("E5E5E5"); bottom.line.fill.background()
+        self._send_to_back(bottom._element, 0)
+
+        self._style_title_color(slide, "111111", left=0.6, top=0.4)
+
+    # ── Creative: Warm cream background + amber header + gold accents ──
+    def _layout_creative(self, slide):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.util import Inches
+        c = self.theme.colors
+
+        # Cream background
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(7.5))
+        bg.fill.solid(); bg.fill.fore_color.rgb = hex_to_rgbcolor(c.background); bg.line.fill.background()
+        self._send_to_back(bg._element, 0)
+
+        # Warm amber header
+        header = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(1.4))
+        header.fill.solid(); header.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); header.line.fill.background()
+        self._send_to_back(header._element, 1)
+
+        # Gold accent line below header
+        strip = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(1.4), Inches(13.33), Inches(0.06))
+        strip.fill.solid(); strip.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); strip.line.fill.background()
+        self._send_to_back(strip._element, 2)
+
+        # Thin gold bottom line
+        bottom = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(7.1), Inches(12.33), Inches(0.03))
+        bottom.fill.solid(); bottom.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); bottom.line.fill.background()
+        self._send_to_back(bottom._element, 1)
+
+        # Title: cream text on amber header
+        self._style_title_color(slide, c.header_text)
+
+    # ── Academic: Top double rule + classic positioning ──
+    def _layout_academic(self, slide):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.util import Inches
+        c = self.theme.colors
+
+        # Thick top rule
+        top_rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.3), Inches(12.33), Inches(0.06))
+        top_rule.fill.solid(); top_rule.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); top_rule.line.fill.background()
+        self._send_to_back(top_rule._element, 0)
+
+        # Thin rule below
+        thin_rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.45), Inches(12.33), Inches(0.02))
+        thin_rule.fill.solid(); thin_rule.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); thin_rule.line.fill.background()
+        self._send_to_back(thin_rule._element, 1)
+
+        # Bottom matching rule
+        bot_rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(7.1), Inches(12.33), Inches(0.04))
+        bot_rule.fill.solid(); bot_rule.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); bot_rule.line.fill.background()
+        self._send_to_back(bot_rule._element, 0)
+
+        self._style_title_color(slide, c.primary, left=0.5, top=0.55)
+
+    # ── Dark: Full-bleed dark background + accent stripe ──
+    def _layout_dark(self, slide):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.util import Inches
+        c = self.theme.colors
+
+        # Full slide dark background
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(7.5))
+        bg.fill.solid(); bg.fill.fore_color.rgb = hex_to_rgbcolor(c.header_bg); bg.line.fill.background()
+        self._send_to_back(bg._element, 0)
+
+        # Accent stripe at top
+        stripe = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(0.08))
+        stripe.fill.solid(); stripe.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); stripe.line.fill.background()
+        self._send_to_back(stripe._element, 1)
+
+        # Bottom accent line
+        bottom = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(7.42), Inches(13.33), Inches(0.08))
+        bottom.fill.solid(); bottom.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); bottom.line.fill.background()
+        self._send_to_back(bottom._element, 1)
+
+        self._style_title_white(slide)
+
+        # Make ALL text on the slide white for readability
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    for run in para.runs:
+                        run.font.color.rgb = hex_to_rgbcolor("F1F5F9")
 
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply presentation metadata."""

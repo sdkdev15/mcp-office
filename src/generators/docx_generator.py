@@ -72,21 +72,20 @@ class DOCXGenerator:
         page_size: str = "A4",
         orientation: str = "portrait",
         metadata: Optional[dict] = None,
+        sections: Optional[list[dict]] = None,
         content_paragraphs: Optional[list[str]] = None,
         tables: Optional[list[dict]] = None,
     ) -> bytes:
-        """Create a Word document with optional inline content.
-
-        Higher-level API that combines document creation with paragraph
-        and table insertion in a single call.
+        """Create a Word document with structured sections.
 
         Args:
-            title: Document title.
+            title: Document title (fallback if no title section provided).
             page_size: Page size (A4, Letter, Legal).
             orientation: Page orientation (portrait, landscape).
             metadata: Optional document metadata.
-            content_paragraphs: Optional list of paragraph texts.
-            tables: Optional list of table dicts with headers and rows.
+            sections: Ordered list of section dicts (title, subtitle, toc, heading_1-3, paragraph, list_bullet, list_number, table).
+            content_paragraphs: DEPRECATED legacy paragraph list.
+            tables: DEPRECATED legacy table list.
 
         Returns:
             Document content as bytes.
@@ -98,17 +97,19 @@ class DOCXGenerator:
         if metadata:
             self._apply_metadata(metadata)
 
-        self.add_heading(title, level=1)
-
-        if content_paragraphs:
-            for text in content_paragraphs:
-                self.add_paragraph(text)
-
-        if tables:
-            for table_data in tables:
-                headers = table_data.get("headers", [])
-                rows = table_data.get("rows", [])
-                self.add_table(headers, rows)
+        if sections:
+            self._process_sections(sections)
+        else:
+            # Legacy fallback
+            self.add_heading(title, level=1)
+            if content_paragraphs:
+                for text in content_paragraphs:
+                    self.add_paragraph(text)
+            if tables:
+                for table_data in tables:
+                    headers = table_data.get("headers", [])
+                    rows = table_data.get("rows", [])
+                    self.add_table(headers, rows)
 
         return self._save_document()
 
@@ -126,8 +127,20 @@ class DOCXGenerator:
         colors = self.theme.colors
         if level == 1:
             for run in heading.runs:
-                run.font.color.rgb = hex_to_rgbcolor(colors.primary)
-                run.font.name = self.theme.fonts.heading
+                pass
+            
+            if self.theme_name == "corporate":
+                try:
+                    from docx.shared import Pt, RGBColor
+                    header = self.doc.sections[0].header
+                    if not header.paragraphs[0].text:
+                        hp = header.paragraphs[0]
+                        hp.text = "CORPORATE REPORT"
+                        hp.style.font.name = "Arial"
+                        hp.style.font.size = Pt(9)
+                        hp.style.font.color.rgb = RGBColor(156, 163, 175) # Gray-400
+                except Exception:
+                    pass
 
     def add_paragraph(
         self,
@@ -168,18 +181,12 @@ class DOCXGenerator:
 
         if font_name:
             run.font.name = font_name
-        else:
-            run.font.name = self.theme.fonts.body
 
         if font_size:
             run.font.size = Pt(font_size)
-        else:
-            run.font.size = Pt(self.theme.fonts.body_size)
 
         if color:
             run.font.color.rgb = hex_to_rgbcolor(color)
-        else:
-            run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text)
 
         if alignment:
             align_map = {
@@ -240,8 +247,7 @@ class DOCXGenerator:
                 cell.text = str(value)
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
-                        run.font.name = self.theme.fonts.body
-                        run.font.size = Pt(self.theme.fonts.body_size)
+                        pass
 
                 # Alternate row shading
                 if row_idx % 2 == 1:
@@ -556,6 +562,94 @@ class DOCXGenerator:
         font.name = self.theme.fonts.body
         font.size = Pt(self.theme.fonts.body_size)
 
+    def add_table_of_contents(self, title: str = "Table of Contents") -> None:
+        """Insert a Word-native Table of Contents field.
+
+        The TOC uses field codes that Word/WPS Office will render and
+        auto-populate from Heading 1-3 styles when the user updates fields.
+        """
+        from docx.oxml import OxmlElement
+
+        # Add TOC heading
+        toc_heading = self.doc.add_paragraph(title)
+        toc_heading.style = self.doc.styles['Heading 1']
+
+        # Create the TOC field using complex field characters
+        paragraph = self.doc.add_paragraph()
+        run = paragraph.add_run()
+        fldChar_begin = OxmlElement('w:fldChar')
+        fldChar_begin.set(qn('w:fldCharType'), 'begin')
+        run._r.append(fldChar_begin)
+
+        run2 = paragraph.add_run()
+        instrText = OxmlElement('w:instrText')
+        instrText.set(qn('xml:space'), 'preserve')
+        instrText.text = ' TOC \\o "1-3" \\h \\z \\u '
+        run2._r.append(instrText)
+
+        run3 = paragraph.add_run()
+        fldChar_separate = OxmlElement('w:fldChar')
+        fldChar_separate.set(qn('w:fldCharType'), 'separate')
+        run3._r.append(fldChar_separate)
+
+        # Placeholder text shown before field update
+        run4 = paragraph.add_run('[Update this field to populate Table of Contents]')
+        run4.italic = True
+        run4.font.color.rgb = RGBColor(156, 163, 175)
+
+        run5 = paragraph.add_run()
+        fldChar_end = OxmlElement('w:fldChar')
+        fldChar_end.set(qn('w:fldCharType'), 'end')
+        run5._r.append(fldChar_end)
+
+        # Add a page break after TOC
+        self.doc.add_page_break()
+
+    def add_subtitle(self, text: str) -> None:
+        """Add a subtitle paragraph using the built-in 'Subtitle' style."""
+        self.doc.add_paragraph(text, style='Subtitle')
+
+    def _process_sections(self, sections: list[dict]) -> None:
+        """Process an ordered array of document sections.
+
+        Each section dict must have a 'type' key. Supported types:
+        title, subtitle, toc, heading_1, heading_2, heading_3,
+        paragraph, list_bullet, list_number, table.
+        """
+        for section in sections:
+            section_type = section.get("type", "paragraph")
+            text = section.get("text", "")
+
+            if section_type == "title":
+                self.doc.add_paragraph(text, style='Title')
+            elif section_type == "subtitle":
+                self.add_subtitle(text)
+            elif section_type == "toc":
+                self.add_table_of_contents(section.get("title", "Table of Contents"))
+            elif section_type == "heading_1":
+                self.add_heading(text, level=1)
+            elif section_type == "heading_2":
+                self.add_heading(text, level=2)
+            elif section_type == "heading_3":
+                self.add_heading(text, level=3)
+            elif section_type == "paragraph":
+                self.add_paragraph(text)
+            elif section_type == "list_bullet":
+                items = section.get("items", [])
+                self.add_list(items, ordered=False)
+            elif section_type == "list_number":
+                items = section.get("items", [])
+                self.add_list(items, ordered=True)
+            elif section_type == "table":
+                headers = section.get("headers", [])
+                rows = section.get("rows", [])
+                if headers and rows:
+                    self.add_table(headers, rows)
+            else:
+                log.warning(f"Unknown section type '{section_type}', treating as paragraph")
+                if text:
+                    self.add_paragraph(text)
+
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply document metadata."""
         apply_metadata(self.doc.core_properties, metadata)
@@ -564,6 +658,7 @@ class DOCXGenerator:
         self,
         template_path: str,
         title: str = "Document",
+        sections: Optional[list[dict]] = None,
         content_paragraphs: Optional[list[str]] = None,
         tables: Optional[list[dict]] = None,
         metadata: Optional[dict] = None,
@@ -576,8 +671,9 @@ class DOCXGenerator:
         Args:
             template_path: Path to the .docx template file.
             title: Document title (replaces first Heading 1 if found).
-            content_paragraphs: Optional list of paragraph texts to append.
-            tables: Optional list of table data dicts with headers and rows.
+            sections: Ordered list of section dicts.
+            content_paragraphs: DEPRECATED legacy paragraph list.
+            tables: DEPRECATED legacy table list.
             metadata: Optional document metadata.
 
         Returns:
@@ -589,31 +685,32 @@ class DOCXGenerator:
         if metadata:
             self._apply_metadata(metadata)
 
-        # Replace first heading with title if found
-        if title:
-            for para in self.doc.paragraphs:
-                if para.style and para.style.name and para.style.name.startswith("Heading"):
-                    # Found a heading — replace its text while preserving formatting
-                    if para.runs:
-                        # Clear all runs except the first, set title on first
-                        para.runs[0].text = title
-                        for run in para.runs[1:]:
-                            run.text = ""
-                    else:
-                        para.text = title
-                    break
+        if sections:
+            # New structured sections flow
+            self._process_sections(sections)
+        else:
+            # Legacy fallback
+            # Replace first heading with title if found
+            if title:
+                for para in self.doc.paragraphs:
+                    if para.style and para.style.name and para.style.name.startswith("Heading"):
+                        if para.runs:
+                            para.runs[0].text = title
+                            for run in para.runs[1:]:
+                                run.text = ""
+                        else:
+                            para.text = title
+                        break
 
-        # Append content paragraphs
-        if content_paragraphs:
-            for text in content_paragraphs:
-                self.add_paragraph(text)
+            if content_paragraphs:
+                for text in content_paragraphs:
+                    self.add_paragraph(text)
 
-        # Append tables
-        if tables:
-            for table_data in tables:
-                headers = table_data.get("headers", [])
-                rows = table_data.get("rows", [])
-                self.add_table(headers, rows)
+            if tables:
+                for table_data in tables:
+                    headers = table_data.get("headers", [])
+                    rows = table_data.get("rows", [])
+                    self.add_table(headers, rows)
 
         return self._save_document()
 

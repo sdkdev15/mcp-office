@@ -92,10 +92,8 @@ def register_handlers(
                 "excel_create": _excel_create,
                 "excel_export": _excel_export,
                 "docx_create": _docx_create,
-                "docx_from_prompt": _docx_generate_from_prompt,
                 "docx_export": _docx_export,
                 "pptx_create": _pptx_create,
-                "pptx_from_prompt": _pptx_generate_from_prompt,
                 "pptx_export": _pptx_export,
                 "list_themes_tool": _list_themes,
                 "list_files": _list_files,
@@ -227,7 +225,20 @@ async def _excel_export(args: dict) -> list[TextContent]:
 
 async def _docx_create(args: dict) -> list[TextContent]:
     gen = DOCXGenerator(args.get("theme", "corporate"))
-    template_path = _validate_template_path(args.get("template_path"))
+    template_path = args.get("template_path")
+    if template_path:
+        template_path = _validate_template_path(template_path)
+    else:
+        import os
+        theme_name = args.get("theme", "corporate")
+        base_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", f"{theme_name}_base.docx")
+        if os.path.exists(base_path):
+            template_path = base_path
+        else:
+            fallback = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "corporate_base.docx")
+            if os.path.exists(fallback):
+                template_path = fallback
+    sections = args.get("sections")
     content_paragraphs = args.get("content_paragraphs")
     tables = args.get("tables")
 
@@ -236,6 +247,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
             return gen.create_from_template(
                 template_path,
                 title=args.get("title", "Document"),
+                sections=sections,
                 content_paragraphs=content_paragraphs,
                 tables=tables,
                 metadata=args.get("metadata"),
@@ -246,6 +258,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
                 page_size=args.get("page_size", "A4"),
                 orientation=args.get("orientation", "portrait"),
                 metadata=args.get("metadata"),
+                sections=sections,
                 content_paragraphs=content_paragraphs,
                 tables=tables,
             )
@@ -259,17 +272,6 @@ async def _docx_create(args: dict) -> list[TextContent]:
     file_info = await _file_handler.save_file(data, filename, _get_session_id(args))
     return [TextContent(type="text", text=_format_file_result(file_info))]
 
-
-async def _docx_generate_from_prompt(args: dict) -> list[TextContent]:
-    gen = DOCXGenerator(args.get("theme", "corporate"))
-    title = args.get("filename") or "Generated Document"
-    data = await asyncio.to_thread(gen.create_from_prompt, args["prompt"], title)
-    filename = args.get("filename") or "document.docx"
-    if not filename.endswith(".docx"):
-        filename += ".docx"
-    filename = _file_handler.generate_filename(filename.rsplit(".", 1)[0], ".docx")
-    file_info = await _file_handler.save_file(data, filename, _get_session_id(args))
-    return [TextContent(type="text", text=_format_file_result(file_info))]
 
 
 async def _docx_export(args: dict) -> list[TextContent]:
@@ -302,7 +304,19 @@ async def _docx_export(args: dict) -> list[TextContent]:
 
 async def _pptx_create(args: dict) -> list[TextContent]:
     gen = PPTXGenerator(args.get("theme", "corporate"))
-    template_path = _validate_template_path(args.get("template_path"))
+    template_path = args.get("template_path")
+    if template_path:
+        template_path = _validate_template_path(template_path)
+    else:
+        import os
+        theme_name = args.get("theme", "corporate")
+        base_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", f"{theme_name}_base.pptx")
+        if os.path.exists(base_path):
+            template_path = base_path
+        else:
+            fallback = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "corporate_base.pptx")
+            if os.path.exists(fallback):
+                template_path = fallback
     slides = args.get("slides")
 
     def _sync_create():
@@ -329,17 +343,6 @@ async def _pptx_create(args: dict) -> list[TextContent]:
     file_info = await _file_handler.save_file(data, filename, _get_session_id(args))
     return [TextContent(type="text", text=_format_file_result(file_info))]
 
-
-async def _pptx_generate_from_prompt(args: dict) -> list[TextContent]:
-    gen = PPTXGenerator(args.get("theme", "corporate"))
-    title = args.get("filename") or "Generated Presentation"
-    data = await asyncio.to_thread(gen.create_from_prompt, args["prompt"], title)
-    filename = args.get("filename") or "presentation.pptx"
-    if not filename.endswith(".pptx"):
-        filename += ".pptx"
-    filename = _file_handler.generate_filename(filename.rsplit(".", 1)[0], ".pptx")
-    file_info = await _file_handler.save_file(data, filename, _get_session_id(args))
-    return [TextContent(type="text", text=_format_file_result(file_info))]
 
 
 async def _pptx_export(args: dict) -> list[TextContent]:

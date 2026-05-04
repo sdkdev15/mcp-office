@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+.venv
 
 # IDE
 .vscode/
@@ -25,3 +26,4 @@ Thumbs.db
 # Generated
 code_review_graph.html
 .code-review-graph/
+test_outputs/

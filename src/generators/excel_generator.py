@@ -120,6 +120,18 @@ class ExcelGenerator:
         # Auto-fit columns
         self.style_applier.auto_fit_columns(ws)
 
+        # Add charts if provided
+        charts = sheet_data.get("charts", [])
+        for chart_data in charts:
+            try:
+                c_type = validate_chart_type(chart_data.get("chart_type", "column"))
+                chart = self.style_applier.create_chart(c_type, chart_data.get("title", "Chart"))
+                data_ref = Reference(ws, range_string=chart_data.get("data_range"))
+                chart.add_data(data_ref, titles_from_data=True)
+                ws.add_chart(chart, chart_data.get("position", "D2"))
+            except Exception as e:
+                log.warning(f"Failed to add chart to sheet {name}: {e}")
+
     def _apply_metadata(self, wb: Workbook, metadata: dict) -> None:
         """Apply document metadata."""
         apply_metadata(wb.properties, metadata)

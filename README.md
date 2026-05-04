@@ -1,38 +1,36 @@
 # MCP Office Server
 
-MCP (Model Context Protocol) server untuk menghasilkan dokumen Office — **Excel (.xlsx)**, **Word (.docx)**, dan **PowerPoint (.pptx)** — dengan dukungan format ODF (.ods, .odt, .odp), 5 tema bawaan, dan deployment via Docker.
+MCP (Model Context Protocol) server for generating Office documents — **Excel (.xlsx)**, **Word (.docx)**, and **PowerPoint (.pptx)** — with ODF format support (.ods, .odt, .odp), 5 built-in themes, and Docker deployment.
 
-## Fitur
+## Features
 
-- **Excel** — Multi-sheet workbook dengan styling, chart, conditional formatting
-- **Word** — Dokumen dengan heading, paragraf, tabel, daftar, gambar
-- **PowerPoint** — Presentasi dengan slide, chart, tabel, text box
-- **ODF Support** — Format LibreOffice (.ods, .odt, .odp)
-- **5 Tema Bawaan** — corporate, minimal, creative, academic, dark
-- **Custom Template** — Gunakan file .xlsx/.docx/.pptx Anda sebagai template (preserves formatting, formulas, charts, master slides)
-- **Multi-format Export** — Generate OOXML + ODF dalam satu panggilan
-- **Locale Support** — Indonesia (id_ID) dan Inggris (en_US)
+- **Excel** — Multi-sheet workbooks with styling, charts, formulas, and conditional formatting
+- **Word** — Structured documents with title, subtitle, TOC, headings (H1–H3), paragraphs, bullet/numbered lists, tables, and images
+- **PowerPoint** — Presentations with corporate branding, slide layouts, tables, charts, and text boxes
+- **ODF Support** — LibreOffice formats (.ods, .odt, .odp)
+- **5 Built-in Themes** — corporate, minimal, creative, academic, dark
+- **Custom Templates** — Use your own .xlsx/.docx/.pptx files as base templates
+- **Multi-format Export** — Generate OOXML + ODF in a single call
+- **Locale Support** — English (en_US) and Indonesian (id_ID)
 - **Rate Limiting** — Sliding window per user
-- **Auto Cleanup** — Hapus file lama otomatis
-- **Session Isolation** — Direktori output per sesi
+- **Auto Cleanup** — Automatic deletion of old files
+- **Session Isolation** — Per-session output directories
 - **Security** — PII redaction, input sanitization, audit trail
-- **Docker Ready** — Build dan jalankan via Docker (mode headless/SSE)
+- **Docker Ready** — Build and run via Docker (stdio/SSE modes)
 
 ---
 
-## Cara Penggunaan
+## Getting Started
 
-### Mode Desktop (Python langsung via stdio)
+### Desktop Mode (Python via stdio)
 
-Cocok untuk penggunaan di komputer lokal dengan Python terinstall.
-
-**1. Install dependensi:**
+**1. Install dependencies:**
 
 ```bash
 pip install openpyxl python-docx python-pptx odfpy mcp loguru pydantic pydantic-settings aiofiles aiohttp uvicorn starlette
 ```
 
-**2. Konfigurasi MCP Client:**
+**2. Configure MCP Client:**
 
 ```json
 {
@@ -50,27 +48,12 @@ pip install openpyxl python-docx python-pptx odfpy mcp loguru pydantic pydantic-
 }
 ```
 
-> **Catatan:** Pastikan menjalankan dari direktori proyek `mcp-office/` atau set `PYTHONPATH` ke direktori proyek.
-
----
-
-### Mode Headless / Server (Docker + SSE)
-
-Cocok untuk deployment di server tanpa GUI atau akses jarak jauh.
-
-**1. Build Docker image:**
+### Docker Mode (SSE)
 
 ```bash
 docker compose build
-```
-
-**2. Jalankan server:**
-
-```bash
 docker compose up -d
 ```
-
-**3. Konfigurasi MCP Client:**
 
 ```json
 {
@@ -83,68 +66,46 @@ docker compose up -d
 }
 ```
 
-> Ganti `YOUR_SERVER_IP` dengan IP atau hostname server Anda. Untuk localhost gunakan `http://localhost:8765/sse`.
+---
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `excel_create` | Create Excel workbooks with sheets, charts, formulas, and styling |
+| `excel_export` | Export data to xlsx, ods, csv formats |
+| `docx_create` | Create structured Word documents with sections (title, subtitle, TOC, headings, lists, tables) |
+| `docx_export` | Export documents to docx, odt formats |
+| `pptx_create` | Create PowerPoint presentations with slides, tables, and corporate branding |
+| `pptx_export` | Export presentations to pptx, odp formats |
+| `list_themes_tool` | List all available themes |
+| `list_files` | List generated files for a session |
+| `get_storage_stats` | Get storage usage statistics |
 
 ---
 
-### Mode Docker stdio (Alternatif)
+## Usage Examples
 
-Jalankan langsung via Docker tanpa SSE:
+### Create an Excel Workbook
 
-```json
-{
-  "mcpServers": {
-    "mcp-office": {
-      "type": "stdio",
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-v", "mcp-office-outputs:/app/outputs",
-        "-e", "MCP_TRANSPORT=stdio",
-        "mcp-office-mcp-office:latest"
-      ]
-    }
-  }
-}
-```
-
----
-
-## Tool yang Tersedia
-
-| Tool | Deskripsi |
-|------|-----------|
-| `excel_create` | Buat file Excel dengan sheet, styling, dan tema |
-| `excel_export` | Export data ke format xlsx, ods |
-| `docx_create` | Buat dokumen Word dengan halaman dan tema |
-| `docx_generate_from_prompt` | Generate dokumen Word dari deskripsi bahasa alami |
-| `docx_export` | Export dokumen ke format docx, odt |
-| `pptx_create` | Buat presentasi PowerPoint dengan slide dan tema |
-| `pptx_generate_from_prompt` | Generate presentasi dari deskripsi bahasa alami |
-| `pptx_export` | Export presentasi ke format pptx, odp |
-| `list_themes_tool` | Lihat semua tema yang tersedia |
-| `list_files` | Lihat file yang di-generate untuk sesi tertentu |
-| `get_storage_stats` | Statistik penggunaan penyimpanan |
-
----
-
-## Contoh Penggunaan
-
-### Buat File Excel
+Supports formulas (cells starting with `=`), charts, and multi-sheet layouts.
 
 ```json
 {
   "tool": "excel_create",
   "arguments": {
-    "filename": "laporan_penjualan.xlsx",
+    "filename": "sales_report.xlsx",
     "sheets": [
       {
-        "name": "Data Penjualan",
-        "headers": ["Produk", "Q1", "Q2", "Q3", "Q4"],
+        "name": "Revenue",
+        "headers": ["Month", "Sales", "Expenses", "Profit"],
         "rows": [
-          ["Laptop", 150, 200, 180, 250],
-          ["HP", 300, 350, 400, 380],
-          ["Tablet", 100, 120, 150, 130]
+          ["Jan", 50000, 30000, "=B2-C2"],
+          ["Feb", 62000, 35000, "=B3-C3"],
+          ["Total", "=SUM(B2:B3)", "=SUM(C2:C3)", "=SUM(D2:D3)"]
+        ],
+        "charts": [
+          {"chart_type": "bar", "data_range": "A1:B3", "title": "Monthly Sales", "position": "F2"}
         ]
       }
     ],
@@ -153,275 +114,169 @@ Jalankan langsung via Docker tanpa SSE:
 }
 ```
 
-### Buat Dokumen Word
+### Create a Word Document
+
+Uses a structured `sections` array to build rich documents with proper heading hierarchy, table of contents, lists, and interleaved tables.
 
 ```json
 {
   "tool": "docx_create",
   "arguments": {
-    "filename": "laporan.docx",
-    "title": "Laporan Kuartal",
-    "theme": "academic",
-    "page_size": "A4",
-    "orientation": "portrait"
-  }
-}
-```
-
-### Generate Word dari Prompt
-
-```json
-{
-  "tool": "docx_generate_from_prompt",
-  "arguments": {
-    "prompt": "Buatkan surat resmi undangan rapat bulanan untuk tim engineering",
-    "filename": "undangan_rapat.docx",
-    "theme": "corporate"
-  }
-}
-```
-
-### Buat Presentasi PowerPoint
-
-```json
-{
-  "tool": "pptx_create",
-  "arguments": {
-    "filename": "presentasi.pptx",
-    "title": "Update Proyek",
-    "theme": "creative",
-    "slide_size": "widescreen"
-  }
-}
-```
-
-### Generate Presentasi dari Prompt
-
-```json
-{
-  "tool": "pptx_generate_from_prompt",
-  "arguments": {
-    "prompt": "Buatkan presentasi 5 slide tentang strategi marketing digital untuk UMKM",
-    "filename": "marketing_umkm.pptx",
-    "theme": "creative"
-  }
-}
-```
-
-### Export Multi-format
-
-```json
-{
-  "tool": "excel_export",
-  "arguments": {
-    "sheets": [
-      {
-        "name": "Data",
-        "headers": ["Nama", "Nilai"],
-        "rows": [["A", 100], ["B", 200]]
-      }
-    ],
-    "format": "all"
-  }
-}
-```
-
-### Lihat Tema Tersedia
-
-```json
-{
-  "tool": "list_themes_tool",
-  "arguments": {}
-}
-```
-
----
-
-## Custom Template (Menggunakan Template Anda Sendiri)
-
-Anda dapat menggunakan file dokumen Anda sendiri sebagai template. Server akan melestarikan semua formatting, styles, formulas, charts, master slides, dan layout dari template Anda, lalu mengisi data baru.
-
-### Excel dengan Template
-
-Gunakan file `.xlsx` Anda sebagai template (misalnya template dengan formula, chart, dan formatting perusahaan):
-
-```json
-{
-  "tool": "excel_create",
-  "arguments": {
-    "filename": "laporan_baru.xlsx",
-    "template_path": "/path/to/template_perusahaan.xlsx",
-    "sheets": [
-      {
-        "name": "Data",
-        "headers": ["Produk", "Q1", "Q2", "Q3", "Q4"],
-        "rows": [
-          ["Laptop", 150, 200, 180, 250],
-          ["HP", 300, 350, 400, 380]
-        ]
-      }
+    "filename": "quarterly_report.docx",
+    "theme": "corporate",
+    "sections": [
+      {"type": "title", "text": "Quarterly Report"},
+      {"type": "subtitle", "text": "Q3 2026 Financial Summary"},
+      {"type": "toc"},
+      {"type": "heading_1", "text": "1. Revenue Analysis"},
+      {"type": "paragraph", "text": "Revenue grew by 12% year-over-year."},
+      {"type": "list_bullet", "items": ["SaaS: +15%", "Services: +8%"]},
+      {"type": "heading_2", "text": "1.1 Regional Breakdown"},
+      {"type": "list_number", "items": ["APAC grew fastest", "EMEA remained stable"]},
+      {"type": "table", "headers": ["Region", "Revenue"], "rows": [["APAC", "$2.1M"], ["EMEA", "$1.8M"]]},
+      {"type": "heading_1", "text": "2. Outlook"},
+      {"type": "paragraph", "text": "We expect continued growth in Q4."}
     ]
   }
 }
 ```
 
-> **Template preserves:** formulas, charts, conditional formatting, pivot tables, data validation, named ranges.
+**Supported section types:**
 
-### Word dengan Template
+| Type | Fields | Description |
+|------|--------|-------------|
+| `title` | `text` | Document title (Title style) |
+| `subtitle` | `text` | Document subtitle (Subtitle style) |
+| `toc` | — | Table of Contents (auto-populates from headings) |
+| `heading_1` | `text` | Heading level 1 |
+| `heading_2` | `text` | Heading level 2 |
+| `heading_3` | `text` | Heading level 3 |
+| `paragraph` | `text` | Body paragraph |
+| `list_bullet` | `items` | Bulleted list |
+| `list_number` | `items` | Numbered list |
+| `table` | `headers`, `rows` | Data table with themed styling |
 
-Gunakan file `.docx` Anda sebagai template (misalnya template surat resmi dengan header/logo perusahaan):
+> **Note:** The Table of Contents uses Word field codes. Right-click the TOC and select "Update Field" in Word/WPS Office to populate it.
 
-```json
-{
-  "tool": "docx_create",
-  "arguments": {
-    "filename": "surat_baru.docx",
-    "template_path": "/path/to/template_surat.docx",
-    "title": "Surat Undangan Rapat",
-    "content_paragraphs": [
-      "Dengan hormat,",
-      "Kami mengundang Bapak/Ibu untuk menghadiri rapat bulanan tim engineering.",
-      "Terima kasih."
-    ],
-    "tables": [
-      {
-        "headers": ["Agenda", "Waktu", "Pembicara"],
-        "rows": [
-          ["Review Sprint", "10:00", "PM"],
-          ["Planning", "11:00", "Tech Lead"]
-        ]
-      }
-    ]
-  }
-}
-```
+### Create a PowerPoint Presentation
 
-> **Template preserves:** headers, footers, page setup, styles, fonts, company logo, watermarks.
-
-### PowerPoint dengan Template
-
-Gunakan file `.pptx` Anda sebagai template (misalnya template presentasi dengan master slide dan branding perusahaan):
+Pass a `slides` array with explicit slide objects for precise control over every slide.
 
 ```json
 {
   "tool": "pptx_create",
   "arguments": {
-    "filename": "presentasi_baru.pptx",
-    "template_path": "/path/to/template_presentasi.pptx",
+    "filename": "project_update.pptx",
+    "theme": "corporate",
     "slides": [
-      {
-        "layout": "title_and_content",
-        "title": "Update Proyek Q1",
-        "content": "Presentasi progress kuartal pertama",
-        "bullets": ["Target tercapai 95%", "Budget on track", "Tim expanded"]
-      },
-      {
-        "layout": "title_and_content",
-        "title": "Rencana Q2",
-        "bullets": ["Launch fitur baru", "Scale infrastruktur", "Hire 3 engineer"]
-      }
+      {"title": "Welcome", "layout": "title"},
+      {"title": "Key Metrics", "content": "All targets exceeded", "bullets": ["Revenue +12%", "Users +25%"], "layout": "title_and_content"},
+      {"title": "Financial Summary", "layout": "title_and_content", "table_headers": ["Metric", "Value"], "table_rows": [["Revenue", "$2.1M"], ["Profit", "$400K"]]},
+      {"title": "Next Steps", "content": "Questions?", "layout": "title_only"}
     ]
   }
 }
 ```
 
-> **Template preserves:** master slides, themes, fonts, layouts, company branding, slide transitions.
-
-### Cara Kerja Template
-
-1. **Upload/Tempatkan** file template (.xlsx, .docx, atau .pptx) di server
-2. **Berikan path** ke file template via parameter `template_path`
-3. **Sertakan data** baru yang ingin diisi (sheets, content_paragraphs, slides, tables)
-4. **Server** akan memuat template, melestarikan formatting, dan mengisi data baru
-5. **Hasil** disimpan sebagai file baru dengan nama di parameter `filename`
+**Available slide layouts:** `title`, `title_and_content`, `title_only`, `two_content`, `blank`, `section_header`
 
 ---
 
-## Tema
+## Custom Templates
 
-| Tema | Deskripsi | Warna Utama |
-|------|-----------|-------------|
-| `corporate` | Profesional dengan nuansa biru | #1E40AF |
-| `minimal` | Bersih hitam putih, modern | #000000 |
-| `creative` | Cerah ungu dan pink | #7C3AED |
-| `academic` | Formal dengan font serif | #1E3A5F |
-| `dark` | Dark mode dengan aksen biru | #60A5FA |
+Use your own branded document as a base. The server preserves all formatting, styles, formulas, charts, master slides, and layouts from your template.
 
----
+```json
+{
+  "tool": "docx_create",
+  "arguments": {
+    "filename": "report.docx",
+    "template_path": "/path/to/your_template.docx",
+    "sections": [
+      {"type": "heading_1", "text": "Project Status"},
+      {"type": "paragraph", "text": "All milestones on track."}
+    ]
+  }
+}
+```
 
-## Konfigurasi
-
-| Environment Variable | Default | Deskripsi |
-|---------------------|---------|-----------|
-| `OUTPUT_DIR` | `outputs` | Direktori untuk file hasil generate |
-| `FILE_RETENTION_HOURS` | `24` | Jam sebelum file otomatis dihapus |
-| `RATE_LIMIT_REQUESTS` | `20` | Maks request per window per user |
-| `RATE_LIMIT_WINDOW` | `60` | Window rate limit dalam detik |
-| `MCP_TRANSPORT` | `stdio` | Mode transport (stdio atau sse) |
-| `LOCALE` | `en_US` | Locale default (en_US, id_ID) |
+Supported template formats: `.xlsx`, `.docx`, `.pptx`
 
 ---
 
-## Struktur Proyek
+## Themes
+
+| Theme | Description | Primary Color |
+|-------|-------------|---------------|
+| `corporate` | Professional blue tones | #1E40AF |
+| `minimal` | Clean black and white | #000000 |
+| `creative` | Warm cream with amber tones | #78350F |
+| `academic` | Formal with serif fonts | #1E3A5F |
+| `dark` | Dark mode with slate tones | #1E293B |
+
+---
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `OUTPUT_DIR` | `outputs` | Output directory for generated files |
+| `FILE_RETENTION_HOURS` | `24` | Hours before auto-deletion |
+| `RATE_LIMIT_REQUESTS` | `20` | Max requests per window per user |
+| `RATE_LIMIT_WINDOW` | `60` | Rate limit window in seconds |
+| `MCP_TRANSPORT` | `stdio` | Transport mode (stdio or sse) |
+| `LOCALE` | `en_US` | Default locale (en_US, id_ID) |
+
+---
+
+## Project Structure
 
 ```
 mcp-office/
 ├── src/
-│   ├── server.py              # Entry point MCP server
+│   ├── server.py                # MCP server entry point
 │   ├── generators/
-│   │   ├── excel_generator.py # Excel (.xlsx)
-│   │   ├── docx_generator.py  # Word (.docx)
-│   │   ├── pptx_generator.py  # PowerPoint (.pptx)
-│   │   └── odf_generator.py   # ODF (.ods, .odt, .odp)
+│   │   ├── excel_generator.py   # Excel (.xlsx)
+│   │   ├── docx_generator.py    # Word (.docx)
+│   │   ├── pptx_generator.py    # PowerPoint (.pptx)
+│   │   └── odf_generator.py     # ODF (.ods, .odt, .odp)
+│   ├── tools/
+│   │   ├── definitions.py       # Tool schemas and JSON guides
+│   │   └── handlers.py          # Tool handler implementations
 │   ├── styles/
-│   │   ├── themes.py          # Definisi tema
-│   │   └── style_applier.py   # Utility aplikasi style
-│   ├── utils/
-│   │   ├── file_handler.py    # Operasi file
-│   │   ├── cleanup.py         # Auto cleanup file
-│   │   ├── rate_limiter.py    # Rate limiting
-│   │   ├── validators.py      # Validasi input
-│   │   ├── data_transformer.py # Konversi format data
-│   │   ├── security.py        # PII redaction, sanitization, audit
-│   │   └── logger.py          # Structured logging
-│   └── models/
-│       └── schemas.py         # Pydantic models
-├── run_server.py              # Wrapper script untuk menjalankan server
-├── test_all.py                # Test script untuk semua generator
-├── tests.py                   # Unit tests
-├── .env.example               # Template environment variables
-├── Dockerfile                 # Docker image definition
-├── docker-compose.yml         # Docker Compose configuration
-├── pyproject.toml             # Python project configuration
+│   │   ├── themes.py            # Theme definitions
+│   │   └── style_applier.py     # Style application utilities
+│   ├── templates/               # Base document templates
+│   └── utils/
+│       ├── file_handler.py      # File operations
+│       ├── cleanup.py           # Auto cleanup
+│       ├── rate_limiter.py      # Rate limiting
+│       ├── validators.py        # Input validation
+│       ├── security.py          # PII redaction, sanitization
+│       └── logger.py            # Structured logging
+├── run_server.py                # Server launcher
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
 └── README.md
 ```
 
-## Dependensi
+## Dependencies
 
-| Paket | Kegunaan |
-|-------|----------|
-| **mcp** | Framework MCP server |
-| **openpyxl** | Generate file Excel |
-| **python-docx** | Generate dokumen Word |
-| **python-pptx** | Generate PowerPoint |
-| **odfpy** | Support format ODF |
-| **pydantic** | Validasi data |
+| Package | Purpose |
+|---------|---------|
+| **mcp** | MCP server framework |
+| **openpyxl** | Excel file generation |
+| **python-docx** | Word document generation |
+| **python-pptx** | PowerPoint generation |
+| **odfpy** | ODF format support |
+| **pydantic** | Data validation |
 | **pydantic-settings** | Environment configuration |
 | **loguru** | Structured logging |
 | **aiofiles** | Async file I/O |
 | **aiohttp** | HTTP client |
-| **uvicorn** | ASGI server (mode SSE) |
-| **starlette** | ASGI framework (mode SSE) |
-
-## Testing
-
-```bash
-# Test semua generator
-python test_all.py
-
-# Run unit tests
-pytest tests.py -v
-```
+| **uvicorn** | ASGI server (SSE mode) |
+| **starlette** | ASGI framework (SSE mode) |
 
 ## License
 
