@@ -155,6 +155,9 @@ class PPTXGenerator:
                     raise ValueError("No body placeholder found")
 
                 tf = body_shape.text_frame
+                from pptx.enum.text import MSO_AUTO_SIZE
+                tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                tf.word_wrap = True
 
                 # Clear existing paragraphs (keep first, remove rest, then clear first)
                 for p in list(tf.paragraphs)[1:]:
@@ -215,6 +218,9 @@ class PPTXGenerator:
             Inches(left), Inches(top), Inches(width), Inches(height)
         )
         tf = txBox.text_frame
+        from pptx.enum.text import MSO_AUTO_SIZE
+        tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tf.word_wrap = True
         p = tf.add_paragraph()
         p.text = text
 
