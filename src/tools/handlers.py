@@ -98,6 +98,8 @@ def register_handlers(
                 "excel_advanced_formatting": _excel_create,  # Reuse creation logic
                 "excel_with_images": _excel_create,          # Reuse creation logic
                 "docx_with_images": _docx_create,            # Reuse creation logic
+                "batch_create_documents": _batch_create_documents,
+                "merge_documents": _merge_documents,
                 "analyze_data": _analyze_data,
                 "generate_summary": _generate_summary,
                 "generate_faq": _generate_faq,
@@ -408,6 +410,45 @@ async def _recommend_charts(args: dict) -> list[TextContent]:
     data = await asyncio.to_thread(gen.recommend, args["data"], args.get("data_types"), args.get("num_recommendations", 3))
     import json
     return [TextContent(type="text", text=json.dumps(data, indent=2))]
+
+
+# ── Batch & Merge Implementations ──
+
+async def _batch_create_documents(args: dict) -> list[TextContent]:
+    from src.utils.batch_processor import BatchProcessor
+    import os
+    
+    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
+    processor = BatchProcessor(output_dir=output_dir)
+    
+    zip_path = await asyncio.to_thread(
+        processor.process_batch,
+        args["format"],
+        args["template"],
+        args["datasets"],
+        args.get("theme", "corporate")
+    )
+    
+    return [TextContent(type="text", text=f"Batch processed successfully. ZIP archive saved to: {zip_path}")]
+
+async def _merge_documents(args: dict) -> list[TextContent]:
+    from src.utils.document_merger import DocumentMerger
+    import os
+    
+    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
+    merger = DocumentMerger(output_dir=output_dir)
+    
+    output_filename = args["output_filename"]
+    file_paths = args["file_paths"]
+    
+    if output_filename.endswith(".pdf"):
+        merged_path = await asyncio.to_thread(merger.merge_pdf, file_paths, output_filename)
+    elif output_filename.endswith(".docx"):
+        merged_path = await asyncio.to_thread(merger.merge_docx, file_paths, output_filename)
+    else:
+        raise ValueError("Output filename must end with .pdf or .docx")
+        
+    return [TextContent(type="text", text=f"Documents merged successfully. Saved to: {merged_path}")]
 
 
 async def _list_themes() -> list[TextContent]:

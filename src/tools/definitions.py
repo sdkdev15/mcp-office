@@ -595,6 +595,48 @@ TOOLS = [
         }
     ),
 
+    # ── Batch & Templating (Track D) ──
+    Tool(
+        name="batch_create_documents",
+        description="Generate multiple documents from a single template and a list of datasets (mail merge). Returns a ZIP file.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "format": {"type": "string", "enum": ["excel", "docx", "pptx"]},
+                "template": {
+                    "type": "string",
+                    "description": "JSON string representing the document payload. Use {{var}} for variables, {{#each array}}...{{/each}} for loops, {{#if cond}}...{{/if}} for conditionals."
+                },
+                "datasets": {
+                    "type": "array",
+                    "description": "Array of data objects to inject into the template. Each object produces one document.",
+                    "items": {"type": "object"}
+                },
+                "theme": {"type": "string", "enum": ["corporate", "minimal", "creative", "academic", "dark"], "default": "corporate"}
+            },
+            "required": ["format", "template", "datasets"]
+        }
+    ),
+    Tool(
+        name="merge_documents",
+        description="Merge multiple Word (.docx) or PDF (.pdf) documents into a single file.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_paths": {
+                    "type": "array",
+                    "description": "Array of absolute file paths to merge.",
+                    "items": {"type": "string"}
+                },
+                "output_filename": {
+                    "type": "string",
+                    "description": "Filename for the merged output file (must end in .docx or .pdf)"
+                }
+            },
+            "required": ["file_paths", "output_filename"]
+        }
+    ),
+
     # ── Utility Tools ──
     Tool(
         name="list_themes_tool",

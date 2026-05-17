@@ -40,6 +40,8 @@ dependencies = [
     # Images & Requests (Track C)
     "Pillow>=9.0",
     "requests>=2.31",
+    # PDF Merging (Track D)
+    "pypdf>=4.0.0",
 ]
 
 [project.optional-dependencies]

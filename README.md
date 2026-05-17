@@ -71,6 +71,8 @@ docker compose up -d
 ## Available Tools
 
 > 📚 **For detailed instructions, constraints, and JSON examples for all tools, please see the [Tool Guide](TOOL_GUIDE.md).**
+> 📊 **For data analysis tool workflows, see the [Analysis Guide](ANALYSIS_GUIDE.md).**
+> 📦 **For mail-merge and bulk processing, see the [Batch Guide](BATCH_GUIDE.md).**
 
 | Tool | Description |
 |------|-------------|
@@ -80,6 +82,8 @@ docker compose up -d
 | `docx_export` | Export documents to docx, odt formats |
 | `pptx_create` | Create PowerPoint presentations with slides, tables, and corporate branding |
 | `pptx_export` | Export presentations to pptx, odp formats |
+| `batch_create_documents` | Generate multiple documents from a single template and a list of datasets (mail merge) |
+| `merge_documents` | Merge multiple Word (.docx) or PDF (.pdf) documents into a single file |
 | `list_themes_tool` | List all available themes |
 | `list_files` | List generated files for a session |
 | `get_storage_stats` | Get storage usage statistics |
