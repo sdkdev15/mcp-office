@@ -7,6 +7,10 @@ MCP (Model Context Protocol) server for generating Office documents — **Excel 
 - **Excel** — Multi-sheet workbooks with styling, charts, formulas, and conditional formatting
 - **Word** — Structured documents with title, subtitle, TOC, headings (H1–H3), paragraphs, bullet/numbered lists, tables, and images
 - **PowerPoint** — Presentations with corporate branding, slide layouts, tables, charts, and text boxes
+- **Advanced Visualization** — Embed external images (URLs/Base64) into Word, Excel, and PowerPoint, and apply Excel conditional formatting (data bars, color scales).
+- **Data Analysis & AI Tools** — Built-in statistical engines to analyze datasets, find outliers, generate automatic summaries, and recommend charts.
+- **Batch Generation (Mail Merge)** — Generate multiple personalized documents from a single JSON template and an array of datasets.
+- **Document Merging** — Concatenate multiple `.docx` or `.pdf` files into a single master document.
 - **ODF Support** — LibreOffice formats (.ods, .odt, .odp)
 - **5 Built-in Themes** — corporate, minimal, creative, academic, dark
 - **Custom Templates** — Use your own .xlsx/.docx/.pptx files as base templates
@@ -328,6 +332,12 @@ mcp-office/
 | **aiohttp** | HTTP client |
 | **uvicorn** | ASGI server (SSE mode) |
 | **starlette** | ASGI framework (SSE mode) |
+| **numpy** | Statistical computations (Track B) |
+| **scipy** | Advanced statistics & outliers (Track B) |
+| **pandas** | Dataframe and time-series analysis (Track B) |
+| **Pillow** | Image processing & resizing (Track C) |
+| **requests** | Fetching remote images (Track C) |
+| **pypdf** | PDF document merging (Track D) |
 
 ## License
 
