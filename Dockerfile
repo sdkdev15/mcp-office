@@ -18,7 +18,13 @@ RUN pip install --no-cache-dir \
     aiohttp \
     uvicorn \
     starlette \
-    boto3
+    boto3 \
+    numpy \
+    scipy \
+    pandas \
+    Pillow \
+    requests \
+    pypdf
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
