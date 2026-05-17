@@ -95,6 +95,10 @@ def register_handlers(
                 "docx_export": _docx_export,
                 "pptx_create": _pptx_create,
                 "pptx_export": _pptx_export,
+                "analyze_data": _analyze_data,
+                "generate_summary": _generate_summary,
+                "generate_faq": _generate_faq,
+                "recommend_charts": _recommend_charts,
                 "list_themes_tool": _list_themes,
                 "list_files": _list_files,
                 "get_storage_stats": _get_storage_stats,
@@ -370,6 +374,37 @@ async def _pptx_export(args: dict) -> list[TextContent]:
         results.append(_format_file_result(file_info))
 
     return [TextContent(type="text", text="\n\n".join(results))]
+
+
+# ── Analysis Implementations ──
+
+async def _analyze_data(args: dict) -> list[TextContent]:
+    from src.analysis.analyzer import Analyzer
+    analyzer = Analyzer()
+    data = await asyncio.to_thread(analyzer.analyze, args["data"], args.get("target_columns"), args.get("breakdown_by"))
+    import json
+    return [TextContent(type="text", text=json.dumps(data, indent=2))]
+
+async def _generate_summary(args: dict) -> list[TextContent]:
+    from src.analysis.summary_generator import SummaryGenerator
+    gen = SummaryGenerator()
+    data = await asyncio.to_thread(gen.generate, args["data"], args.get("style", "professional"), args.get("include_metrics", True), args.get("max_insights", 5))
+    import json
+    return [TextContent(type="text", text=json.dumps(data, indent=2))]
+
+async def _generate_faq(args: dict) -> list[TextContent]:
+    from src.analysis.faq_generator import FAQGenerator
+    gen = FAQGenerator()
+    data = await asyncio.to_thread(gen.generate, args["data"], args.get("num_questions", 5), args.get("question_style", "practical"))
+    import json
+    return [TextContent(type="text", text=json.dumps(data, indent=2))]
+
+async def _recommend_charts(args: dict) -> list[TextContent]:
+    from src.analysis.chart_recommender import ChartRecommender
+    gen = ChartRecommender()
+    data = await asyncio.to_thread(gen.recommend, args["data"], args.get("data_types"), args.get("num_recommendations", 3))
+    import json
+    return [TextContent(type="text", text=json.dumps(data, indent=2))]
 
 
 async def _list_themes() -> list[TextContent]:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import difflib
 from typing import Any
 
 from src.utils.logger import get_logger
@@ -27,6 +29,8 @@ ALLOWED_LAYOUTS = [
 ]
 ALLOWED_HEADING_LEVELS = [1, 2, 3, 4]
 ALLOWED_EXPORT_FORMATS = ["xlsx", "ods", "csv", "pptx", "odp", "docx", "odt", "pdf", "all"]
+ALLOWED_THEMES = ["corporate", "minimal", "creative", "academic", "dark"]
+ALLOWED_LOCALES = ["en_US", "id_ID"]
 
 
 class ValidationError(Exception):
@@ -38,22 +42,24 @@ class ValidationError(Exception):
         super().__init__(f"Validation error in '{field}': {message}")
 
 
+def suggest_closest(word: str, possibilities: list[str]) -> str:
+    """Return a suggestion string if a close match is found."""
+    matches = difflib.get_close_matches(word, possibilities, n=1, cutoff=0.6)
+    return f" Did you mean '{matches[0]}'?" if matches else ""
+
+
+def validate_mutually_exclusive(data: dict, fields: list[str]):
+    """Ensure that only one of the mutually exclusive fields is provided."""
+    provided = [f for f in fields if data.get(f) is not None]
+    if len(provided) > 1:
+        raise ValidationError(
+            ", ".join(provided),
+            f"These parameters are mutually exclusive. Provide only one of: {', '.join(fields)}"
+        )
+
+
 def validate_string(value: Any, field: str, min_length: int = 0, max_length: int = 1000, required: bool = False) -> str:
-    """Validate and sanitize a string value.
-
-    Args:
-        value: Value to validate.
-        field: Field name for error messages.
-        min_length: Minimum string length.
-        max_length: Maximum string length.
-        required: Whether the field is required.
-
-    Returns:
-        Validated string.
-
-    Raises:
-        ValidationError: If validation fails.
-    """
+    """Validate and sanitize a string value."""
     if value is None:
         if required:
             raise ValidationError(field, "This field is required")
@@ -72,51 +78,44 @@ def validate_string(value: Any, field: str, min_length: int = 0, max_length: int
 
 
 def validate_filename(filename: str) -> str:
-    """Validate and sanitize a filename.
-
-    Args:
-        filename: Filename to validate.
-
-    Returns:
-        Sanitized filename.
-
-    Raises:
-        ValidationError: If validation fails.
-    """
+    """Validate and sanitize a filename."""
     if not filename:
         raise ValidationError("filename", "Filename is required")
 
-    # Remove dangerous characters
-    dangerous_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
-    safe_name = filename
-    for char in dangerous_chars:
-        safe_name = safe_name.replace(char, "_")
+    # Check for invalid characters using regex
+    if re.search(r'[<>:"/\\|?*]', filename):
+        raise ValidationError("filename", "Filename contains invalid characters (<>:/\\|?*)")
 
-    # Ensure it has a valid extension
     import os.path
     allowed_extensions = {".xlsx", ".ods", ".csv", ".pptx", ".odp", ".docx", ".odt", ".pdf"}
-    _, ext = os.path.splitext(safe_name.lower())
+    _, ext = os.path.splitext(filename.lower())
     if ext and ext not in allowed_extensions:
         raise ValidationError("filename", f"Invalid extension '{ext}'. Allowed: {', '.join(allowed_extensions)}")
 
-    if len(safe_name) > 200:
+    if len(filename) > 200:
         raise ValidationError("filename", "Filename too long (max 200 characters)")
 
-    return safe_name
+    return filename
+
+
+def validate_cell_range(cell_range: str, field: str) -> str:
+    """Validate Excel cell range like 'A1:B10'."""
+    cell_range = str(cell_range).upper().strip()
+    if not re.match(r"^[A-Z]+\d+:[A-Z]+\d+$", cell_range):
+        raise ValidationError(field, f"Invalid cell range format '{cell_range}'. Expected format like 'A1:B10'")
+    return cell_range
+
+
+def validate_formula(formula: str, field: str) -> str:
+    """Validate Excel formula syntax (starts with '=')."""
+    formula = str(formula).strip()
+    if not formula.startswith("="):
+        raise ValidationError(field, f"Formulas must start with '='. Did you mean '={formula}'?")
+    return formula
 
 
 def validate_sheet_data(sheets: list[dict]) -> list[dict]:
-    """Validate Excel sheet data structure.
-
-    Args:
-        sheets: List of sheet data dictionaries.
-
-    Returns:
-        Validated sheet data.
-
-    Raises:
-        ValidationError: If validation fails.
-    """
+    """Validate Excel sheet data structure."""
     if not sheets:
         raise ValidationError("sheets", "At least one sheet is required")
 
@@ -134,12 +133,10 @@ def validate_sheet_data(sheets: list[dict]) -> list[dict]:
             raise ValidationError(f"sheets[{i}].name", f"Duplicate sheet name: {name}")
         sheet_names.add(name)
 
-        # Validate headers
         headers = sheet.get("headers", [])
         if headers and not isinstance(headers, list):
             raise ValidationError(f"sheets[{i}].headers", "Headers must be a list")
 
-        # Validate rows
         rows = sheet.get("rows", [])
         if not isinstance(rows, list):
             raise ValidationError(f"sheets[{i}].rows", "Rows must be a list")
@@ -149,66 +146,80 @@ def validate_sheet_data(sheets: list[dict]) -> list[dict]:
 
         if headers:
             for j, row in enumerate(rows):
-                if isinstance(row, list) and len(row) != len(headers):
-                    log.warning(f"Row {j} has {len(row)} columns, expected {len(headers)}")
+                if not isinstance(row, list):
+                    raise ValidationError(f"sheets[{i}].rows[{j}]", "Row must be a list")
+                if len(row) != len(headers):
+                    raise ValidationError(
+                        f"sheets[{i}].rows[{j}]",
+                        f"Row has {len(row)} columns, expected {len(headers)} columns based on headers. All rows must have the same length as headers."
+                    )
+                
+                # Formula validation
+                for k, cell in enumerate(row):
+                    if isinstance(cell, str) and len(cell) > 1 and cell.startswith("SUM(") and not cell.startswith("="):
+                         raise ValidationError(f"sheets[{i}].rows[{j}][{k}]", f"Formula missing '=' prefix: '{cell}'. Use '={cell}'.")
+                    if isinstance(cell, str) and cell.startswith("="):
+                         if len(cell) == 1:
+                             raise ValidationError(f"sheets[{i}].rows[{j}][{k}]", "Empty formula.")
+
+        # Chart range validation
+        charts = sheet.get("charts", [])
+        for k, chart in enumerate(charts):
+            dr = chart.get("data_range")
+            if dr:
+                validate_cell_range(dr, f"sheets[{i}].charts[{k}].data_range")
+            ctype = chart.get("chart_type")
+            if ctype:
+                validate_chart_type(ctype)
 
     return sheets
 
 
 def validate_chart_type(chart_type: str) -> str:
-    """Validate chart type.
-
-    Args:
-        chart_type: Chart type string.
-
-    Returns:
-        Validated chart type.
-
-    Raises:
-        ValidationError: If chart type is invalid.
-    """
     chart_type = chart_type.lower().strip()
     if chart_type not in ALLOWED_CHART_TYPES:
+        suggestion = suggest_closest(chart_type, ALLOWED_CHART_TYPES)
         raise ValidationError(
             "chart_type",
-            f"Invalid chart type '{chart_type}'. Allowed: {', '.join(ALLOWED_CHART_TYPES)}"
+            f"Invalid chart type '{chart_type}'. Allowed: {', '.join(ALLOWED_CHART_TYPES)}.{suggestion}"
         )
     return chart_type
 
 
 def validate_slide_layout(layout: str) -> str:
-    """Validate slide layout.
-
-    Args:
-        layout: Layout string.
-
-    Returns:
-        Validated layout.
-
-    Raises:
-        ValidationError: If layout is invalid.
-    """
     layout = layout.lower().strip().replace(" ", "_")
     if layout not in ALLOWED_LAYOUTS:
+        suggestion = suggest_closest(layout, ALLOWED_LAYOUTS)
         raise ValidationError(
             "layout",
-            f"Invalid layout '{layout}'. Allowed: {', '.join(ALLOWED_LAYOUTS)}"
+            f"Invalid layout '{layout}'. Allowed: {', '.join(ALLOWED_LAYOUTS)}.{suggestion}"
         )
     return layout
 
 
+def validate_theme(theme: str) -> str:
+    theme = theme.lower().strip()
+    if theme not in ALLOWED_THEMES:
+        suggestion = suggest_closest(theme, ALLOWED_THEMES)
+        raise ValidationError(
+            "theme",
+            f"Invalid theme '{theme}'. Allowed: {', '.join(ALLOWED_THEMES)}.{suggestion}"
+        )
+    return theme
+
+
+def validate_locale(locale: str) -> str:
+    locale = locale.strip()
+    if locale not in ALLOWED_LOCALES:
+        suggestion = suggest_closest(locale, ALLOWED_LOCALES)
+        raise ValidationError(
+            "locale",
+            f"Invalid locale '{locale}'. Allowed: {', '.join(ALLOWED_LOCALES)}.{suggestion}"
+        )
+    return locale
+
+
 def validate_heading_level(level: int) -> int:
-    """Validate heading level.
-
-    Args:
-        level: Heading level (1-4).
-
-    Returns:
-        Validated heading level.
-
-    Raises:
-        ValidationError: If level is invalid.
-    """
     if level not in ALLOWED_HEADING_LEVELS:
         raise ValidationError(
             "level",
@@ -218,39 +229,17 @@ def validate_heading_level(level: int) -> int:
 
 
 def validate_export_format(fmt: str) -> str:
-    """Validate export format.
-
-    Args:
-        fmt: Format string.
-
-    Returns:
-        Validated format.
-
-    Raises:
-        ValidationError: If format is invalid.
-    """
     fmt = fmt.lower().strip()
     if fmt not in ALLOWED_EXPORT_FORMATS:
+        suggestion = suggest_closest(fmt, ALLOWED_EXPORT_FORMATS)
         raise ValidationError(
             "format",
-            f"Invalid export format '{fmt}'. Allowed: {', '.join(ALLOWED_EXPORT_FORMATS)}"
+            f"Invalid export format '{fmt}'. Allowed: {', '.join(ALLOWED_EXPORT_FORMATS)}.{suggestion}"
         )
     return fmt
 
 
 def validate_table_data(headers: list, rows: list) -> tuple[list, list]:
-    """Validate table data structure.
-
-    Args:
-        headers: Table headers.
-        rows: Table rows.
-
-    Returns:
-        Tuple of (headers, rows).
-
-    Raises:
-        ValidationError: If validation fails.
-    """
     if not headers:
         raise ValidationError("headers", "Table must have headers")
 
@@ -260,22 +249,16 @@ def validate_table_data(headers: list, rows: list) -> tuple[list, list]:
     if len(rows) > MAX_TABLE_ROWS:
         raise ValidationError("rows", f"Maximum {MAX_TABLE_ROWS} rows allowed")
 
+    for i, row in enumerate(rows):
+        if not isinstance(row, list):
+             raise ValidationError(f"rows[{i}]", "Row must be a list")
+        if len(row) != len(headers):
+             raise ValidationError(f"rows[{i}]", f"Row length ({len(row)}) does not match headers length ({len(headers)}).")
+
     return headers, rows
 
 
 def validate_inputs(data: dict, schema: dict) -> dict:
-    """Validate input data against a schema definition.
-
-    Args:
-        data: Input data dictionary.
-        schema: Schema definition with field requirements.
-
-    Returns:
-        Validated and sanitized data.
-
-    Raises:
-        ValidationError: If validation fails.
-    """
     validated = {}
     for field, rules in schema.items():
         value = data.get(field)

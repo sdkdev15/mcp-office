@@ -70,6 +70,8 @@ docker compose up -d
 
 ## Available Tools
 
+> 📚 **For detailed instructions, constraints, and JSON examples for all tools, please see the [Tool Guide](TOOL_GUIDE.md).**
+
 | Tool | Description |
 |------|-------------|
 | `excel_create` | Create Excel workbooks with sheets, charts, formulas, and styling |
@@ -231,6 +233,18 @@ Supported template formats: `.xlsx`, `.docx`, `.pptx`
 | `RATE_LIMIT_WINDOW` | `60` | Rate limit window in seconds |
 | `MCP_TRANSPORT` | `stdio` | Transport mode (stdio or sse) |
 | `LOCALE` | `en_US` | Default locale (en_US, id_ID) |
+
+---
+
+## Minimum Specifications
+
+To run the MCP Office Server with all Data Analysis features (Track B), the following minimum specifications are recommended:
+
+- **CPU:** 2 Cores (4 Cores recommended for heavy batch generation)
+- **RAM:** 2 GB Minimum (4 GB+ recommended if processing large datasets >100,000 rows with pandas)
+- **Storage:** 500 MB free space (for Docker images, dependencies like `numpy`/`scipy`/`pandas`, and local output caching)
+- **Python:** Version 3.11 or higher
+- **OS:** Windows, macOS, or Linux
 
 ---
 

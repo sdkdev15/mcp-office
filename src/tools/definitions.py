@@ -11,6 +11,7 @@ TOOLS = [
         name="excel_create",
         description=(
             "Create an Excel workbook (.xlsx) with multiple sheets, styling, charts, and formulas.\n\n"
+            "Use EITHER 'sheets' (new) OR 'template_path' (from template), not both.\n\n"
             "SHEETS JSON SAMPLE:\n"
             "[\n"
             "  {\n"
@@ -25,15 +26,19 @@ TOOLS = [
             "  }\n"
             "]\n\n"
             "TIPS: Cell values starting with '=' are treated as Excel formulas. "
-            "Supported chart types: bar, line, pie, column, area."
+            "Supported chart types: bar, line, pie, column, area, doughnut, radar, scatter, bubble."
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "filename": {"type": "string", "description": "Output filename (e.g., 'report.xlsx')"},
+                "filename": {
+                    "type": "string",
+                    "pattern": r"^[\w\-]+\.xlsx?$",
+                    "description": "Output filename (e.g., 'report.xlsx')"
+                },
                 "sheets": {
                     "type": "array",
-                    "description": "List of sheet objects. Each sheet should have 'name' (string), 'headers' (array of strings), and 'rows' (array of arrays).",
+                    "description": "List of sheet objects. Required if template_path not provided.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -50,10 +55,23 @@ TOOLS = [
                                 "items": {
                                     "type": "object",
                                     "properties": {
-                                        "chart_type": {"type": "string", "description": "bar, line, pie, column, area"},
-                                        "data_range": {"type": "string", "description": "Cell range for data (e.g., 'A1:B10')"},
+                                        "chart_type": {
+                                            "type": "string",
+                                            "enum": ["bar", "line", "pie", "column", "area", "doughnut", "radar", "scatter", "bubble"],
+                                            "description": "Chart type"
+                                        },
+                                        "data_range": {
+                                            "type": "string",
+                                            "pattern": r"^[A-Z]+\d+:[A-Z]+\d+$",
+                                            "description": "Cell range for data (e.g., 'A1:B10')"
+                                        },
                                         "title": {"type": "string", "description": "Chart title", "default": "Chart"},
-                                        "position": {"type": "string", "description": "Placement (e.g., 'D2')", "default": "D2"}
+                                        "position": {
+                                            "type": "string",
+                                            "pattern": r"^[A-Z]+\d+$",
+                                            "description": "Placement (e.g., 'D2')",
+                                            "default": "D2"
+                                        }
                                     },
                                     "required": ["chart_type", "data_range"]
                                 }
@@ -62,13 +80,40 @@ TOOLS = [
                         "required": ["name", "headers", "rows"],
                     },
                 },
-                "theme": {"type": "string", "description": "Theme name (corporate, minimal, creative, academic, dark)", "default": "corporate"},
-                "template_path": {"type": "string", "description": "Optional path to a .xlsx template file to use as base (preserves formatting, formulas, charts)"},
+                "theme": {
+                    "type": "string",
+                    "enum": ["corporate", "minimal", "creative", "academic", "dark"],
+                    "description": "Theme name for styling",
+                    "default": "corporate"
+                },
+                "template_path": {
+                    "type": "string",
+                    "pattern": r"^[\w\-./]+\.xlsx$",
+                    "description": "Optional path to a .xlsx template file to use as base (preserves formatting, formulas, charts). Cannot be used with 'sheets'."
+                },
                 "session_id": {"type": "string", "description": "Optional session ID"},
                 "metadata": {"type": "object", "description": "Optional document metadata"},
-                "locale": {"type": "string", "description": "Locale (en_US, id_ID)", "default": "en_US"},
+                "locale": {
+                    "type": "string",
+                    "enum": ["en_US", "id_ID"],
+                    "description": "Locale (en_US, id_ID)",
+                    "default": "en_US"
+                },
             },
-            "required": ["filename", "sheets"],
+            "required": ["filename"],
+            "examples": [
+                {
+                    "filename": "sales_report.xlsx",
+                    "theme": "corporate",
+                    "sheets": [
+                        {
+                            "name": "Q1",
+                            "headers": ["Jan", "Feb", "Mar"],
+                            "rows": [[100, 200, 150]]
+                        }
+                    ]
+                }
+            ]
         },
     ),
     Tool(
@@ -94,10 +139,27 @@ TOOLS = [
                         "required": ["name", "headers", "rows"],
                     },
                 },
-                "format": {"type": "string", "description": "xlsx, ods, csv, all", "default": "all"},
+                "format": {
+                    "type": "string",
+                    "enum": ["xlsx", "ods", "csv", "all"],
+                    "description": "Output format",
+                    "default": "all"
+                },
                 "session_id": {"type": "string"},
             },
             "required": ["sheets"],
+            "examples": [
+                {
+                    "format": "csv",
+                    "sheets": [
+                        {
+                            "name": "Export Data",
+                            "headers": ["ID", "Value"],
+                            "rows": [[1, 100], [2, 200]]
+                        }
+                    ]
+                }
+            ]
         },
     ),
 
@@ -124,12 +186,33 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "filename": {"type": "string", "description": "Output filename (e.g., 'report.docx')"},
+                "filename": {
+                    "type": "string",
+                    "pattern": r"^[\w\-]+\.docx?$",
+                    "description": "Output filename (e.g., 'report.docx')"
+                },
                 "title": {"type": "string", "description": "Document title (used as fallback if no title section is provided)", "default": "Document"},
-                "theme": {"type": "string", "description": "Theme name (corporate, minimal, creative, academic, dark)", "default": "corporate"},
-                "template_path": {"type": "string", "description": "Optional path to a .docx template file to use as base (preserves formatting, styles, headers, footers)"},
-                "page_size": {"type": "string", "default": "A4"},
-                "orientation": {"type": "string", "default": "portrait"},
+                "theme": {
+                    "type": "string",
+                    "enum": ["corporate", "minimal", "creative", "academic", "dark"],
+                    "description": "Theme name",
+                    "default": "corporate"
+                },
+                "template_path": {
+                    "type": "string",
+                    "pattern": r"^[\w\-./]+\.docx$",
+                    "description": "Optional path to a .docx template file to use as base (preserves formatting, styles, headers, footers). Cannot be used with 'sections'."
+                },
+                "page_size": {
+                    "type": "string",
+                    "enum": ["A4", "Letter", "Legal"],
+                    "default": "A4"
+                },
+                "orientation": {
+                    "type": "string",
+                    "enum": ["portrait", "landscape"],
+                    "default": "portrait"
+                },
                 "sections": {
                     "type": "array",
                     "description": (
@@ -170,6 +253,16 @@ TOOLS = [
                 "metadata": {"type": "object", "description": "Optional document metadata (author, company, subject, title, keywords, category, comments)"},
             },
             "required": ["filename"],
+            "examples": [
+                {
+                    "filename": "summary.docx",
+                    "title": "Meeting Summary",
+                    "sections": [
+                        {"type": "heading_1", "text": "Overview"},
+                        {"type": "paragraph", "text": "This is a summary of the meeting."}
+                    ]
+                }
+            ]
         },
     ),
     Tool(
@@ -179,12 +272,26 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "format": {"type": "string", "default": "all"},
-                "theme": {"type": "string", "default": "corporate"},
+                "format": {
+                    "type": "string",
+                    "enum": ["docx", "odt", "all"],
+                    "default": "all"
+                },
+                "theme": {
+                    "type": "string",
+                    "enum": ["corporate", "minimal", "creative", "academic", "dark"],
+                    "default": "corporate"
+                },
                 "session_id": {"type": "string"},
                 "metadata": {"type": "object"},
             },
             "required": ["title"],
+            "examples": [
+                {
+                    "title": "My Export Document",
+                    "format": "odt"
+                }
+            ]
         },
     ),
 
@@ -202,16 +309,29 @@ TOOLS = [
             "  {\"title\": \"Financials\", \"layout\": \"title_and_content\", \"table_headers\": [\"Metric\", \"Value\"], \"table_rows\": [[\"Revenue\", \"$2.1M\"], [\"Profit\", \"$400K\"]]},\n"
             "  {\"title\": \"Thank You\", \"content\": \"Questions?\", \"layout\": \"title_only\"}\n"
             "]\n\n"
-            "AVAILABLE LAYOUTS: title, title_and_content, title_only, two_content, blank, section_header"
+            "AVAILABLE LAYOUTS: title, title_and_content, title_only, two_content, blank, section_header, comparison"
         ),
         inputSchema={
             "type": "object",
             "additionalProperties": True,
             "properties": {
-                "filename": {"type": "string", "description": "Output filename (e.g., 'presentation.pptx')"},
+                "filename": {
+                    "type": "string",
+                    "pattern": r"^[\w\-]+\.pptx?$",
+                    "description": "Output filename (e.g., 'presentation.pptx')"
+                },
                 "title": {"type": "string", "description": "Presentation title", "default": "Presentation"},
-                "theme": {"type": "string", "description": "Theme name (corporate, minimal, creative, academic, dark)", "default": "corporate"},
-                "template_path": {"type": "string", "description": "Optional path to a .pptx template file to use as base (preserves master slides, themes, layouts)"},
+                "theme": {
+                    "type": "string",
+                    "enum": ["corporate", "minimal", "creative", "academic", "dark"],
+                    "description": "Theme name",
+                    "default": "corporate"
+                },
+                "template_path": {
+                    "type": "string",
+                    "pattern": r"^[\w\-./]+\.pptx$",
+                    "description": "Optional path to a .pptx template file to use as base (preserves master slides, themes, layouts)"
+                },
                 "slides": {
                     "type": "array",
                     "description": "List of slide objects. Each slide can have: title (string), content (string), bullets (array of strings), table_headers (array of strings), table_rows (array of arrays), layout (string), image_path (string).",
@@ -222,18 +342,37 @@ TOOLS = [
                             "title": {"type": "string", "description": "Slide title"},
                             "content": {"type": "string", "description": "Slide body content/description"},
                             "bullets": {"type": "array", "items": {"type": "string"}, "description": "Bullet points for the slide"},
-                            "layout": {"type": "string", "description": "Slide layout (title_and_content, title, blank, two_content)", "default": "title_and_content"},
+                            "layout": {
+                                "type": "string",
+                                "enum": ["title", "title_and_content", "title_only", "two_content", "blank", "section_header", "comparison"],
+                                "description": "Slide layout",
+                                "default": "title_and_content"
+                            },
                             "image_path": {"type": "string", "description": "Optional path to an image"},
                             "table_headers": {"type": "array", "items": {"type": "string"}, "description": "Optional table column headers"},
                             "table_rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "Optional table data rows (array of arrays of cell values)"},
                         }
                     }
                 },
-                "slide_size": {"type": "string", "description": "Slide size (widescreen for 16:9, standard for 4:3)", "default": "widescreen"},
+                "slide_size": {
+                    "type": "string",
+                    "enum": ["widescreen", "standard"],
+                    "description": "Slide size (widescreen for 16:9, standard for 4:3)",
+                    "default": "widescreen"
+                },
                 "session_id": {"type": "string", "description": "Optional session ID"},
                 "metadata": {"type": "object", "description": "Optional presentation metadata (author, company, subject, title, keywords, category, comments)"},
             },
             "required": ["filename"],
+            "examples": [
+                {
+                    "filename": "deck.pptx",
+                    "title": "Quarterly Update",
+                    "slides": [
+                        {"title": "Q1 Performance", "layout": "title"}
+                    ]
+                }
+            ]
         },
     ),
     Tool(
@@ -243,13 +382,116 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "format": {"type": "string", "default": "all"},
-                "theme": {"type": "string", "default": "corporate"},
+                "format": {
+                    "type": "string",
+                    "enum": ["pptx", "odp", "all"],
+                    "default": "all"
+                },
+                "theme": {
+                    "type": "string",
+                    "enum": ["corporate", "minimal", "creative", "academic", "dark"],
+                    "default": "corporate"
+                },
                 "session_id": {"type": "string"},
                 "metadata": {"type": "object"},
             },
             "required": ["title"],
+            "examples": [
+                {
+                    "title": "My Presentation",
+                    "format": "odp"
+                }
+            ]
         },
+    ),
+
+    # ── Analysis & Generation ──
+    Tool(
+        name="analyze_data",
+        description="Analyze a dataset and return statistics, trends, and correlations.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "description": "Array of JSON objects representing the dataset rows",
+                    "items": {"type": "object"}
+                },
+                "target_columns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of numeric columns to analyze"
+                },
+                "breakdown_by": {
+                    "type": "string",
+                    "description": "Optional column name to group data by (e.g., 'month', 'category')"
+                }
+            },
+            "required": ["data"]
+        }
+    ),
+    Tool(
+        name="generate_summary",
+        description="Generate high-level text summaries, key metrics, and insights based on raw data.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "description": "Array of JSON objects representing the dataset rows",
+                    "items": {"type": "object"}
+                },
+                "style": {
+                    "type": "string",
+                    "enum": ["professional", "casual", "technical"],
+                    "default": "professional"
+                },
+                "include_metrics": {"type": "boolean", "default": True},
+                "max_insights": {"type": "integer", "default": 5}
+            },
+            "required": ["data"]
+        }
+    ),
+    Tool(
+        name="generate_faq",
+        description="Formulate Q&A pairs based on statistical analysis of the dataset.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "description": "Array of JSON objects representing the dataset rows",
+                    "items": {"type": "object"}
+                },
+                "num_questions": {"type": "integer", "default": 5},
+                "question_style": {
+                    "type": "string",
+                    "enum": ["practical", "formal"],
+                    "default": "practical"
+                }
+            },
+            "required": ["data"]
+        }
+    ),
+    Tool(
+        name="recommend_charts",
+        description="Evaluate dataset dimensions and recommend optimal chart types.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "description": "Array of JSON objects representing the dataset rows",
+                    "items": {"type": "object"}
+                },
+                "data_types": {
+                    "type": "object",
+                    "description": "Optional mapping of column name to type ('numeric', 'categorical', 'time')"
+                },
+                "num_recommendations": {"type": "integer", "default": 3}
+            },
+            "required": ["data"]
+        }
     ),
 
     # ── Utility Tools ──
