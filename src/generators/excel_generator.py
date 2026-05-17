@@ -16,9 +16,13 @@ from src.utils.data_transformer import DataTransformer
 from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_sheet_data, validate_chart_type, ValidationError
+from src.utils.image_handler import ImageHandler
+from src.utils.conditional_formatting import ConditionalFormatter
 
 log = get_logger("excel_generator")
 transformer = DataTransformer()
+image_handler = ImageHandler()
+cond_formatter = ConditionalFormatter()
 
 
 class ExcelGenerator:
@@ -131,6 +135,31 @@ class ExcelGenerator:
                 ws.add_chart(chart, chart_data.get("position", "D2"))
             except Exception as e:
                 log.warning(f"Failed to add chart to sheet {name}: {e}")
+                
+        # Add images if provided
+        images = sheet_data.get("images", [])
+        for img_data in images:
+            try:
+                from openpyxl.drawing.image import Image as OpenpyxlImage
+                src = img_data.get("source")
+                pos = img_data.get("position", "A1")
+                if src:
+                    # Default size to something reasonable if not specified, 400x300
+                    w = img_data.get("width", 400)
+                    h = img_data.get("height", 300)
+                    cached_path = image_handler.process_image(src, max_size=(w, h))
+                    img = OpenpyxlImage(cached_path)
+                    ws.add_image(img, pos)
+            except Exception as e:
+                log.warning(f"Failed to add image to sheet {name}: {e}")
+                
+        # Apply conditional formatting if provided
+        cf_rules = sheet_data.get("conditional_formatting", [])
+        if cf_rules:
+            try:
+                cond_formatter.apply_rules(ws, cf_rules)
+            except Exception as e:
+                log.warning(f"Failed to apply conditional formatting to sheet {name}: {e}")
 
     def _apply_metadata(self, wb: Workbook, metadata: dict) -> None:
         """Apply document metadata."""

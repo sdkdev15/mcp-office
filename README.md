@@ -137,7 +137,35 @@ Uses a structured `sections` array to build rich documents with proper heading h
       {"type": "list_number", "items": ["APAC grew fastest", "EMEA remained stable"]},
       {"type": "table", "headers": ["Region", "Revenue"], "rows": [["APAC", "$2.1M"], ["EMEA", "$1.8M"]]},
       {"type": "heading_1", "text": "2. Outlook"},
-      {"type": "paragraph", "text": "We expect continued growth in Q4."}
+      {"type": "paragraph", "text": "We expect continued growth in Q4."},
+      {"type": "image", "source": "https://example.com/chart.png", "width": 5.0, "caption": "Growth Trajectory"}
+    ]
+  }
+}
+```
+
+### Advanced Excel Formatting
+
+Create Excel files with data bars and conditional formatting:
+
+```json
+{
+  "tool": "excel_advanced_formatting",
+  "arguments": {
+    "filename": "sales.xlsx",
+    "sheets": [
+      {
+        "name": "Q1",
+        "headers": ["Region", "Sales"],
+        "rows": [["North", 50000], ["South", 70000]],
+        "conditional_formatting": [
+          {
+            "type": "data_bar",
+            "data_range": "B2:B3",
+            "color": "638EC6"
+          }
+        ]
+      }
     ]
   }
 }

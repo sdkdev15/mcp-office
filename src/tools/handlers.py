@@ -95,6 +95,9 @@ def register_handlers(
                 "docx_export": _docx_export,
                 "pptx_create": _pptx_create,
                 "pptx_export": _pptx_export,
+                "excel_advanced_formatting": _excel_create,  # Reuse creation logic
+                "excel_with_images": _excel_create,          # Reuse creation logic
+                "docx_with_images": _docx_create,            # Reuse creation logic
                 "analyze_data": _analyze_data,
                 "generate_summary": _generate_summary,
                 "generate_faq": _generate_faq,

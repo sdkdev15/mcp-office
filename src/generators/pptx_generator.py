@@ -19,8 +19,10 @@ from src.utils.colors import hex_to_rgbcolor_tuple
 from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_slide_layout, ValidationError
+from src.utils.image_handler import ImageHandler
 
 log = get_logger("pptx_generator")
+image_handler = ImageHandler()
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
@@ -85,6 +87,7 @@ class PPTXGenerator:
                     title=slide_data.get("title"),
                     content=slide_data.get("content"),
                     bullets=slide_data.get("bullets"),
+                    images=slide_data.get("images"),
                 )
 
         return self._save_presentation()
@@ -95,6 +98,7 @@ class PPTXGenerator:
         title: Optional[str] = None,
         content: Optional[str] = None,
         bullets: Optional[list[str]] = None,
+        images: Optional[list[dict]] = None,
     ) -> int:
         """Add a slide to the presentation.
 
@@ -103,6 +107,7 @@ class PPTXGenerator:
             title: Slide title.
             content: Body content text.
             bullets: List of bullet points.
+            images: List of images to add.
 
         Returns:
             Index of the added slide.
@@ -197,6 +202,24 @@ class PPTXGenerator:
                 elif bullets:
                     self.add_text_box(slide_idx, "\n".join(bullets), left=1, top=2)
         self._draw_wow_graphics(slide)
+        
+        # Add images
+        if images:
+            for img in images:
+                try:
+                    src = img.get("source")
+                    if src:
+                        cached = image_handler.process_image(src)
+                        self.add_image(
+                            slide_idx, 
+                            cached, 
+                            left=img.get("left", 1.0), 
+                            top=img.get("top", 1.0), 
+                            width=img.get("width"), 
+                            height=img.get("height")
+                        )
+                except Exception as e:
+                    log.warning(f"Failed to add image to slide: {e}")
 
         return slide_idx
 
@@ -597,6 +620,7 @@ class PPTXGenerator:
                     title=slide_data.get("title"),
                     content=slide_data.get("content"),
                     bullets=slide_data.get("bullets"),
+                    images=slide_data.get("images"),
                 )
 
         return self._save_presentation()

@@ -17,8 +17,10 @@ from src.utils.colors import hex_to_rgbcolor_tuple
 from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_heading_level, ValidationError
+from src.utils.image_handler import ImageHandler
 
 log = get_logger("docx_generator")
+image_handler = ImageHandler()
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
@@ -645,6 +647,18 @@ class DOCXGenerator:
                 rows = section.get("rows", [])
                 if headers and rows:
                     self.add_table(headers, rows)
+            elif section_type == "image":
+                src = section.get("source")
+                width = section.get("width")
+                height = section.get("height")
+                caption = section.get("caption")
+                if src:
+                    try:
+                        # docx add_picture accepts local paths or file-like objects
+                        cached_path = image_handler.process_image(src)
+                        self.add_image(cached_path, width=width, height=height, caption=caption)
+                    except Exception as e:
+                        log.warning(f"Failed to add image to docx: {e}")
             else:
                 log.warning(f"Unknown section type '{section_type}', treating as paragraph")
                 if text:

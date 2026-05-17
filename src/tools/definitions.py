@@ -494,6 +494,107 @@ TOOLS = [
         }
     ),
 
+    # ── Advanced Visualization & Formatting (Track C) ──
+    Tool(
+        name="excel_advanced_formatting",
+        description="Create an Excel file with conditional formatting (data bars, color scales, cell rules).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "pattern": r"^[\w\-. ]+\.xlsx$"},
+                "theme": {"type": "string", "enum": ["corporate", "minimal", "creative", "academic", "dark"]},
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "headers": {"type": "array", "items": {"type": "string"}},
+                            "rows": {"type": "array", "items": {"type": ["string", "number", "boolean"]}},
+                            "conditional_formatting": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data_range": {"type": "string", "description": "e.g., 'B2:B10'"},
+                                        "type": {"type": "string", "enum": ["data_bar", "color_scale", "cell_is"]},
+                                        "color": {"type": "string", "description": "Hex color for data_bar"},
+                                        "start_color": {"type": "string"},
+                                        "mid_color": {"type": "string"},
+                                        "end_color": {"type": "string"},
+                                        "operator": {"type": "string", "enum": ["greaterThan", "lessThan", "equal", "between"]},
+                                        "formula": {"type": "array", "items": {"type": "string"}},
+                                        "fill_color": {"type": "string"},
+                                        "font_color": {"type": "string"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": ["filename", "sheets"]
+        }
+    ),
+    Tool(
+        name="excel_with_images",
+        description="Create an Excel file containing embedded images (from URLs or Base64).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "pattern": r"^[\w\-. ]+\.xlsx$"},
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "images": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source": {"type": "string", "description": "URL or Base64 data:image/png;base64,... string"},
+                                        "position": {"type": "string", "description": "Cell reference like 'E5'"},
+                                        "width": {"type": "integer"},
+                                        "height": {"type": "integer"}
+                                    },
+                                    "required": ["source"]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": ["filename", "sheets"]
+        }
+    ),
+    Tool(
+        name="docx_with_images",
+        description="Create a Word document containing inline or floating images.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "pattern": r"^[\w\-. ]+\.docx$"},
+                "sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string", "enum": ["image", "paragraph", "heading_1", "heading_2"]},
+                            "source": {"type": "string", "description": "For image type: URL or Base64"},
+                            "width": {"type": "number", "description": "Width in inches"},
+                            "caption": {"type": "string"},
+                            "text": {"type": "string", "description": "For text types"}
+                        },
+                        "required": ["type"]
+                    }
+                }
+            },
+            "required": ["filename", "sections"]
+        }
+    ),
+
     # ── Utility Tools ──
     Tool(
         name="list_themes_tool",
