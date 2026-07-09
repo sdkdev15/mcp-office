@@ -82,8 +82,10 @@ class PPTXGenerator:
         if metadata:
             self._apply_metadata(metadata)
 
-        # Add title slide
-        self.add_slide("title", title=title)
+        # Add auto-generated title slide only if no cover slide is provided
+        has_cover = slides and slides[0].get("visual_type") == "cover"
+        if not has_cover:
+            self.add_slide("title", title=title)
 
         # Add content slides
         if slides:
