@@ -27,3 +27,4 @@ Thumbs.db
 code_review_graph.html
 .code-review-graph/
 test_outputs/
+.icon_cache

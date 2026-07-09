@@ -836,15 +836,44 @@ class PPTXGenerator:
             try:
                 t = slide.shapes.title
                 t.top = Inches(0.2)
-                t.left = Inches(0.5)
-                t.width = Inches(12.33)
+                t.left = Inches(0.6)
+                t.width = Inches(12)
                 t.height = Inches(0.8)
                 if t.has_text_frame:
                     for p in t.text_frame.paragraphs:
+                        p.alignment = PP_ALIGN.LEFT
                         for run in p.runs:
                             run.font.color.rgb = hex_to_rgbcolor("FFFFFF")
+                            run.font.size = Pt(32)
+                            run.font.name = self.theme.fonts.heading
             except Exception:
                 pass
+
+    def _restyle_body(self, slide, body_top: float = 1.4, body_h: float = 5.6, font_size: int = 16, text_color: str = "#1E293B"):
+        """Restyle the body placeholder for premium look: bigger text, better positioning."""
+        from pptx.util import Inches
+        try:
+            body = None
+            for ph in slide.placeholders:
+                if ph.placeholder_format.idx == 1:
+                    body = ph
+                    break
+            if body is None:
+                return
+            body.top = Inches(body_top)
+            body.height = Inches(body_h)
+            body.left = Inches(1.2)
+            body.width = Inches(11)
+            if body.has_text_frame:
+                body.text_frame.word_wrap = True
+                for p in body.text_frame.paragraphs:
+                    p.space_after = Pt(8)
+                    for run in p.runs:
+                        run.font.size = Pt(font_size)
+                        run.font.color.rgb = hex_to_rgbcolor(text_color)
+                        run.font.name = self.theme.fonts.body
+        except Exception as e:
+            log.warning(f"Failed to restyle body: {e}")
 
     def _style_title_color(self, slide, color: str, left=0.5, top=0.15, width=12.33, height=0.8):
         """Override title text to a specific color and position."""
@@ -863,25 +892,31 @@ class PPTXGenerator:
             except Exception:
                 pass
 
-    # ── Corporate: Full-width header bar + accent line + footer ──
+    # ── Corporate: Dark header bar + accent line + premium body ──
     def _layout_corporate(self, slide):
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.util import Inches
         c = self.theme.colors
 
-        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(1.2))
+        # Dark header bar (shorter to give more room for body)
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.33), Inches(1.0))
         bg.fill.solid(); bg.fill.fore_color.rgb = hex_to_rgbcolor(c.primary); bg.line.fill.background()
         self._send_to_back(bg._element, 0)
 
-        accent = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(1.2), Inches(13.33), Inches(0.05))
+        # Accent line below header
+        accent = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(1.0), Inches(13.33), Inches(0.04))
         accent.fill.solid(); accent.fill.fore_color.rgb = hex_to_rgbcolor(c.accent); accent.line.fill.background()
         self._send_to_back(accent._element, 1)
 
-        footer = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(7.1), Inches(13.33), Inches(0.4))
-        footer.fill.solid(); footer.fill.fore_color.rgb = hex_to_rgbcolor(c.table_alt_row); footer.line.fill.background()
-        self._send_to_back(footer._element, 0)
+        # Subtle bottom bar
+        footer = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(7.2), Inches(13.33), Inches(0.3))
+        footer.fill.solid(); footer.fill.fore_color.rgb = hex_to_rgbcolor(c.border); footer.line.fill.background()
+        self._send_to_back(footer._element, 2)
 
         self._style_title_white(slide)
+
+        # Restyle body placeholder for premium look
+        self._restyle_body(slide, body_top=1.4, body_h=5.6, font_size=18, text_color=c.text)
 
     # ── Minimal: Thin left accent bar + bottom rule ──
     def _layout_minimal(self, slide):
@@ -897,6 +932,7 @@ class PPTXGenerator:
         self._send_to_back(bottom._element, 0)
 
         self._style_title_color(slide, "111111", left=0.6, top=0.4)
+        self._restyle_body(slide, body_top=1.2, body_h=5.6, font_size=18, text_color="111111")
 
     # ── Creative: Warm cream background + amber header + gold accents ──
     def _layout_creative(self, slide):
@@ -926,6 +962,7 @@ class PPTXGenerator:
 
         # Title: cream text on amber header
         self._style_title_color(slide, c.header_text)
+        self._restyle_body(slide, body_top=1.8, body_h=5.0, font_size=18, text_color=c.text)
 
     # ── Academic: Top double rule + classic positioning ──
     def _layout_academic(self, slide):
@@ -949,6 +986,7 @@ class PPTXGenerator:
         self._send_to_back(bot_rule._element, 0)
 
         self._style_title_color(slide, c.primary, left=0.5, top=0.55)
+        self._restyle_body(slide, body_top=1.4, body_h=5.5, font_size=18, text_color=c.text)
 
     # ── Dark: Full-bleed dark background + accent stripe ──
     def _layout_dark(self, slide):
@@ -979,6 +1017,8 @@ class PPTXGenerator:
                 for para in shape.text_frame.paragraphs:
                     for run in para.runs:
                         run.font.color.rgb = hex_to_rgbcolor("F1F5F9")
+
+        self._restyle_body(slide, body_top=1.4, body_h=5.6, font_size=18, text_color="F1F5F9")
 
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply presentation metadata."""
