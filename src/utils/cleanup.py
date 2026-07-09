@@ -129,6 +129,39 @@ class FileCleanup:
             "retention_hours": self.retention_hours,
         }
 
+    def cleanup_icon_cache(self, cache_dir: Optional[str] = None) -> int:
+        """Clean up the icon render cache.
+
+        Deletes all files in the icon cache directory. This is useful when
+        icon definitions have changed or to reclaim disk space.
+
+        Args:
+            cache_dir: Path to the icon cache directory. Defaults to .icon_cache.
+
+        Returns:
+            Number of files deleted.
+        """
+        if cache_dir is None:
+            # Default icon cache location
+            cache_dir = str(Path(__file__).parent.parent.parent / ".icon_cache")
+
+        cache_path = Path(cache_dir)
+        if not cache_path.exists():
+            return 0
+
+        deleted = 0
+        for filepath in cache_path.iterdir():
+            if filepath.is_file() and filepath.suffix == ".png":
+                try:
+                    filepath.unlink()
+                    deleted += 1
+                except OSError as e:
+                    log.error(f"Failed to delete icon cache file {filepath.name}: {e}")
+
+        if deleted > 0:
+            log.info(f"Icon cache cleanup: deleted {deleted} files")
+        return deleted
+
     def _background_cleanup(self) -> None:
         """Background thread that periodically cleans up old files."""
         while self._running:
@@ -143,3 +176,78 @@ class FileCleanup:
     def _human_readable_size(size_bytes: int) -> str:
         """Convert bytes to human-readable size string."""
         return human_readable_size(size_bytes)
+
+
+def remove_old_icon_caches(
+    cache_dir: Optional[str] = None,
+    max_age_hours: int = 168,  # 7 days
+) -> int:
+    """Remove icon cache files older than max_age_hours.
+
+    Args:
+        cache_dir: Path to icon cache directory. Defaults to .icon_cache.
+        max_age_hours: Age threshold in hours.
+
+    Returns:
+        Number of files deleted.
+    """
+    if cache_dir is None:
+        cache_dir = str(Path(__file__).parent.parent.parent / ".icon_cache")
+
+    cache_path = Path(cache_dir)
+    if not cache_path.exists():
+        return 0
+
+    cutoff = datetime.now() - timedelta(hours=max_age_hours)
+    deleted = 0
+    for filepath in cache_path.iterdir():
+        if filepath.is_file() and filepath.suffix == ".png":
+            mtime = datetime.fromtimestamp(filepath.stat().st_mtime)
+            if mtime < cutoff:
+                try:
+                    filepath.unlink()
+                    deleted += 1
+                except OSError as e:
+                    log.error(f"Failed to delete icon cache {filepath.name}: {e}")
+
+    if deleted > 0:
+        log.info(f"Removed {deleted} old icon cache files")
+    return deleted
+
+
+def remove_orphaned_caches(output_dir: str = "outputs") -> int:
+    """Remove cache files in output directories that have no matching output file.
+
+    Args:
+        output_dir: Path to the output directory.
+
+    Returns:
+        Number of orphaned cache entries removed.
+    """
+    out_path = Path(output_dir)
+    if not out_path.exists():
+        return 0
+
+    deleted = 0
+    for session_dir in out_path.iterdir():
+        if not session_dir.is_dir():
+            continue
+        for filepath in session_dir.iterdir():
+            if filepath.is_file() and filepath.suffix in (".png",):
+                # Check if there's a corresponding output file
+                stem = filepath.stem
+                has_output = any(
+                    f.exists()
+                    for ext in (".pptx", ".docx", ".xlsx", ".pdf")
+                    for f in [session_dir / f"{stem}{ext}"]
+                )
+                if not has_output:
+                    try:
+                        filepath.unlink()
+                        deleted += 1
+                    except OSError as e:
+                        log.error(f"Failed to remove orphaned cache {filepath.name}: {e}")
+
+    if deleted > 0:
+        log.info(f"Removed {deleted} orphaned cache entries")
+    return deleted

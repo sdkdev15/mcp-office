@@ -18,9 +18,12 @@ from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_heading_level, ValidationError
 from src.utils.image_handler import ImageHandler
+from src.utils.icon_library import find_icon_by_keyword
+from src.utils.icon_renderer import IconRenderer
 
 log = get_logger("docx_generator")
 image_handler = ImageHandler()
+_icon_renderer = IconRenderer()
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
@@ -77,6 +80,7 @@ class DOCXGenerator:
         sections: Optional[list[dict]] = None,
         content_paragraphs: Optional[list[str]] = None,
         tables: Optional[list[dict]] = None,
+        auto_icons: bool = False,
     ) -> bytes:
         """Create a Word document with structured sections.
 
@@ -85,9 +89,10 @@ class DOCXGenerator:
             page_size: Page size (A4, Letter, Legal).
             orientation: Page orientation (portrait, landscape).
             metadata: Optional document metadata.
-            sections: Ordered list of section dicts (title, subtitle, toc, heading_1-3, paragraph, list_bullet, list_number, table).
+            sections: Ordered list of section dicts (title, subtitle, toc, heading_1-3, paragraph, list_bullet, list_number, table, cover_page, summary_card, icon_heading).
             content_paragraphs: DEPRECATED legacy paragraph list.
             tables: DEPRECATED legacy table list.
+            auto_icons: If True, auto-detect and add icons to headings based on content keywords.
 
         Returns:
             Document content as bytes.
@@ -100,7 +105,7 @@ class DOCXGenerator:
             self._apply_metadata(metadata)
 
         if sections:
-            self._process_sections(sections)
+            self._process_sections(sections, auto_icons=auto_icons)
         else:
             # Legacy fallback
             self.add_heading(title, level=1)
@@ -611,12 +616,13 @@ class DOCXGenerator:
         """Add a subtitle paragraph using the built-in 'Subtitle' style."""
         self.doc.add_paragraph(text, style='Subtitle')
 
-    def _process_sections(self, sections: list[dict]) -> None:
+    def _process_sections(self, sections: list[dict], auto_icons: bool = False) -> None:
         """Process an ordered array of document sections.
 
         Each section dict must have a 'type' key. Supported types:
         title, subtitle, toc, heading_1, heading_2, heading_3,
-        paragraph, list_bullet, list_number, table.
+        paragraph, list_bullet, list_number, table, image,
+        cover_page, summary_card, icon_heading.
         """
         for section in sections:
             section_type = section.get("type", "paragraph")
@@ -630,10 +636,25 @@ class DOCXGenerator:
                 self.add_table_of_contents(section.get("title", "Table of Contents"))
             elif section_type == "heading_1":
                 self.add_heading(text, level=1)
+                self._add_heading_with_optional_icon(text, level=1, auto_icon=auto_icons, icon_name=section.get("icon"))
             elif section_type == "heading_2":
                 self.add_heading(text, level=2)
+                self._add_heading_with_optional_icon(text, level=2, auto_icon=auto_icons, icon_name=section.get("icon"))
             elif section_type == "heading_3":
                 self.add_heading(text, level=3)
+                self._add_heading_with_optional_icon(text, level=3, auto_icon=auto_icons, icon_name=section.get("icon"))
+            elif section_type == "icon_heading":
+                level = section.get("level", 2)
+                self.add_heading(text, level=level)
+                self._add_icon_to_doc(text, icon_name=section.get("icon"), size=32)
+            elif section_type == "cover_page":
+                self._add_cover_page(
+                    title=text,
+                    subtitle=section.get("subtitle", ""),
+                    icon=section.get("icon"),
+                )
+            elif section_type == "summary_card":
+                self._add_summary_card(section)
             elif section_type == "paragraph":
                 self.add_paragraph(text)
             elif section_type == "list_bullet":
@@ -664,6 +685,100 @@ class DOCXGenerator:
                 if text:
                     self.add_paragraph(text)
 
+    def _add_heading_with_optional_icon(
+        self,
+        text: str,
+        level: int,
+        auto_icon: bool = False,
+        icon_name: Optional[str] = None,
+    ) -> None:
+        """Add an icon before a heading when auto_icons is enabled."""
+        if not (auto_icon or icon_name):
+            return
+        self._add_icon_to_doc(text, icon_name=icon_name, size=24)
+
+    def _add_icon_to_doc(
+        self,
+        context_text: str,
+        icon_name: Optional[str] = None,
+        size: int = 32,
+    ) -> None:
+        """Add an icon image to the document.
+
+        Args:
+            context_text: Text to auto-detect icon from if icon_name is None.
+            icon_name: Explicit icon name.
+            size: Icon size in pixels.
+        """
+        if not icon_name:
+            icon_name = find_icon_by_keyword(context_text)
+        if not icon_name:
+            return
+
+        try:
+            ico_path = _icon_renderer.render(
+                icon_name=icon_name,
+                size=size,
+                color=self.theme.colors.primary,
+                bg_color=self.theme.colors.primary,
+                bg_shape="circle",
+            )
+            self.doc.add_picture(ico_path, width=Pt(size))
+        except Exception as e:
+            log.warning(f"Failed to add icon to docx: {e}")
+
+    def _add_cover_page(
+        self,
+        title: str,
+        subtitle: str = "",
+        icon: Optional[str] = None,
+    ) -> None:
+        """Add a cover page with title, subtitle, and optional icon."""
+        # Add icon if specified
+        if icon:
+            self._add_icon_to_doc(title, icon_name=icon, size=64)
+
+        # Spacer
+        self.doc.add_paragraph()
+
+        # Title
+        title_para = self.doc.add_paragraph()
+        title_run = title_para.add_run(title)
+        title_run.bold = True
+        title_run.font.size = Pt(self.theme.fonts.heading1_size)
+        title_run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.primary)
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Horizontal line
+        self.add_horizontal_line()
+
+        # Subtitle
+        if subtitle:
+            sub_para = self.doc.add_paragraph(subtitle)
+            sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in sub_para.runs:
+                run.italic = True
+                run.font.color.rgb = hex_to_rgbcolor(self.theme.colors.text_light)
+
+        # Page break
+        self.doc.add_page_break()
+
+    def _add_summary_card(self, section: dict) -> None:
+        """Add a summary card with icon, title, and content."""
+        text = section.get("text", "")
+        icon_name = section.get("icon")
+
+        if icon_name:
+            self._add_icon_to_doc(text, icon_name=icon_name, size=24)
+
+        # Card content
+        self.add_paragraph(text, bold=True, color=self.theme.colors.primary, space_after=6)
+
+        # Items
+        items = section.get("items", [])
+        if items:
+            self.add_list(items, ordered=False)
+
     def _apply_metadata(self, metadata: dict) -> None:
         """Apply document metadata."""
         apply_metadata(self.doc.core_properties, metadata)
@@ -676,6 +791,7 @@ class DOCXGenerator:
         content_paragraphs: Optional[list[str]] = None,
         tables: Optional[list[dict]] = None,
         metadata: Optional[dict] = None,
+        auto_icons: bool = False,
     ) -> bytes:
         """Create a document using an existing .docx file as template.
 
@@ -689,6 +805,7 @@ class DOCXGenerator:
             content_paragraphs: DEPRECATED legacy paragraph list.
             tables: DEPRECATED legacy table list.
             metadata: Optional document metadata.
+            auto_icons: If True, auto-detect and add icons to headings based on content keywords.
 
         Returns:
             Document content as bytes.
@@ -701,7 +818,7 @@ class DOCXGenerator:
 
         if sections:
             # New structured sections flow
-            self._process_sections(sections)
+            self._process_sections(sections, auto_icons=auto_icons)
         else:
             # Legacy fallback
             # Replace first heading with title if found

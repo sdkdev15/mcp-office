@@ -169,7 +169,7 @@ TOOLS = [
         description=(
             "PREFERRED tool for creating Word documents (.docx). Use a structured 'sections' array to build "
             "rich documents with titles, subtitles, table of contents, headings (H1-H3), paragraphs, bullet lists, "
-            "numbered lists, and tables — all interleaved in any order.\n\n"
+            "numbered lists, tables, and visual elements — all interleaved in any order.\n\n"
             "SECTIONS JSON SAMPLE:\n"
             "[\n"
             "  {\"type\": \"title\", \"text\": \"Quarterly Report\"},\n"
@@ -181,7 +181,13 @@ TOOLS = [
             "  {\"type\": \"heading_2\", \"text\": \"1.1 Regional Breakdown\"},\n"
             "  {\"type\": \"list_number\", \"items\": [\"APAC grew fastest\", \"EMEA stable\"]},\n"
             "  {\"type\": \"table\", \"headers\": [\"Region\", \"Revenue\"], \"rows\": [[\"APAC\", \"$2.1M\"]]}\n"
-            "]"
+            "]\n\n"
+            "VISUAL SECTIONS (auto-icons):\n"
+            "  Set auto_icons=true to auto-detect and add icons to headings based on content keywords.\n"
+            "  {\"type\": \"cover_page\", \"text\": \"Report Title\", \"subtitle\": \"Q3 2026\", \"icon\": \"chart-bar\"}\n"
+            "  {\"type\": \"icon_heading\", \"text\": \"Security Analysis\", \"icon\": \"shield\", \"level\": 2}\n"
+            "  {\"type\": \"summary_card\", \"text\": \"Key Findings\", \"icon\": \"alert\", \"items\": [\"Finding 1\", \"Finding 2\"]}\n\n"
+            "Available icons: lock, server, database, cloud, chart-bar, alert, check, users, calendar, gear, file, folder, mail, phone, globe, trend-up, trend-down, target, award, shield, key, docker, network, cpu, memory, disk, bell, play, pause, refresh, search, warning, info, error, success, incident, analytics, audit, api, upload, download, and more."
         ),
         inputSchema={
             "type": "object",
@@ -213,11 +219,17 @@ TOOLS = [
                     "enum": ["portrait", "landscape"],
                     "default": "portrait"
                 },
+                "auto_icons": {
+                    "type": "boolean",
+                    "description": "If true, auto-detect and add icons to headings based on content keywords",
+                    "default": False
+                },
                 "sections": {
                     "type": "array",
                     "description": (
                         "Ordered array of document sections. Each section has a 'type' and type-specific fields. "
-                        "Supported types: title, subtitle, toc, heading_1, heading_2, heading_3, paragraph, list_bullet, list_number, table."
+                        "Supported types: title, subtitle, toc, heading_1, heading_2, heading_3, paragraph, list_bullet, list_number, table, image, "
+                        "cover_page, summary_card, icon_heading."
                     ),
                     "items": {
                         "type": "object",
@@ -225,13 +237,20 @@ TOOLS = [
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["title", "subtitle", "toc", "heading_1", "heading_2", "heading_3", "paragraph", "list_bullet", "list_number", "table"],
+                                "enum": ["title", "subtitle", "toc", "heading_1", "heading_2", "heading_3", "paragraph", "list_bullet", "list_number", "table", "image", "cover_page", "summary_card", "icon_heading"],
                                 "description": "The section element type",
                             },
-                            "text": {"type": "string", "description": "Text content (for title, subtitle, heading_*, paragraph)"},
-                            "items": {"type": "array", "items": {"type": "string"}, "description": "List items (for list_bullet, list_number)"},
+                            "text": {"type": "string", "description": "Text content (for title, subtitle, heading_*, paragraph, cover_page, summary_card, icon_heading)"},
+                            "items": {"type": "array", "items": {"type": "string"}, "description": "List items (for list_bullet, list_number, summary_card)"},
                             "headers": {"type": "array", "items": {"type": "string"}, "description": "Table column headers (for table)"},
                             "rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "Table data rows (for table)"},
+                            "icon": {"type": "string", "description": "Icon name for icon_heading, cover_page, summary_card (lock, server, shield, chart-bar, etc.)"},
+                            "subtitle": {"type": "string", "description": "Subtitle text (for cover_page)"},
+                            "level": {"type": "integer", "description": "Heading level for icon_heading (1-4)", "default": 2},
+                            "source": {"type": "string", "description": "Image source URL or base64 (for image type)"},
+                            "width": {"type": "number", "description": "Image width in inches (for image type)"},
+                            "height": {"type": "number", "description": "Image height in inches (for image type)"},
+                            "caption": {"type": "string", "description": "Image caption (for image type)"},
                         },
                         "required": ["type"],
                     },
@@ -301,7 +320,7 @@ TOOLS = [
         description=(
             "PREFERRED tool for creating PowerPoint presentations (.pptx). "
             "Pass an explicit 'slides' JSON array with slide objects. Each slide supports: "
-            "title, content, bullets, tables, and images.\n\n"
+            "title, content, bullets, tables, images, and visual elements.\n\n"
             "SLIDES JSON SAMPLE:\n"
             "[\n"
             "  {\"title\": \"Welcome\", \"layout\": \"title\"},\n"
@@ -309,7 +328,16 @@ TOOLS = [
             "  {\"title\": \"Financials\", \"layout\": \"title_and_content\", \"table_headers\": [\"Metric\", \"Value\"], \"table_rows\": [[\"Revenue\", \"$2.1M\"], [\"Profit\", \"$400K\"]]},\n"
             "  {\"title\": \"Thank You\", \"content\": \"Questions?\", \"layout\": \"title_only\"}\n"
             "]\n\n"
-            "AVAILABLE LAYOUTS: title, title_and_content, title_only, two_content, blank, section_header, comparison"
+            "VISUAL SLIDES (premium layouts with auto-icons):\n"
+            "  {\"title\": \"Cover Title\", \"visual_type\": \"cover\", \"content\": \"Subtitle\", \"icon_name\": \"lock\"},\n"
+            "  {\"title\": \"Agenda\", \"visual_type\": \"agenda\", \"agenda_items\": [{\"title\": \"Item 1\", \"subtitle\": \"desc\"}]},\n"
+            "  {\"title\": \"Summary\", \"visual_type\": \"exec-summary\", \"stat_boxes\": [{\"number\": \"2\", \"label\": \"Incidents\"}], \"content\": \"Body text\"},\n"
+            "  {\"title\": \"Timeline\", \"visual_type\": \"timeline\", \"timeline_events\": [{\"title\": \"Event\", \"date\": \"2026-04\"}]},\n"
+            "  {\"title\": \"Architecture\", \"visual_type\": \"flow\", \"flow_nodes\": [{\"label\": \"Node\"}], \"flow_connections\": [[0, 1]]}\n\n"
+            "AUTO ICONS: Set auto_icons=true to auto-detect and add icons based on slide content keywords.\n"
+            "Available icons: lock, server, database, cloud, chart-bar, alert, check, users, calendar, gear, file, folder, mail, phone, globe, trend-up, trend-down, target, award, shield, key, docker, network, cpu, memory, disk, bell, play, pause, refresh, search, warning, info, error, success, incident, analytics, audit, api, upload, download, and more.\n\n"
+            "AVAILABLE LAYOUTS: title, title_and_content, title_only, two_content, blank, section_header, comparison\n"
+            "AVAILABLE VISUAL_TYPES: cover, agenda, exec-summary, timeline, flow"
         ),
         inputSchema={
             "type": "object",
@@ -351,6 +379,73 @@ TOOLS = [
                             "image_path": {"type": "string", "description": "Optional path to an image"},
                             "table_headers": {"type": "array", "items": {"type": "string"}, "description": "Optional table column headers"},
                             "table_rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "Optional table data rows (array of arrays of cell values)"},
+                            "visual_type": {
+                                "type": "string",
+                                "enum": ["cover", "agenda", "exec-summary", "timeline", "flow"],
+                                "description": "Premium visual slide type. Overrides standard layout."
+                            },
+                            "auto_icon": {"type": "boolean", "description": "Auto-detect icon for this slide from content keywords", "default": False},
+                            "icon_name": {"type": "string", "description": "Explicit icon name (lock, server, database, cloud, chart-bar, alert, check, users, etc.)"},
+                            "stat_boxes": {
+                                "type": "array",
+                                "description": "For visual_type=exec-summary: list of stat box data",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "number": {"type": "string", "description": "Large number/metric to display"},
+                                        "label": {"type": "string", "description": "Label below the number"},
+                                        "sub_label": {"type": "string", "description": "Optional sub-label"},
+                                        "icon": {"type": "string", "description": "Icon name for this stat box"},
+                                        "bg_color": {"type": "string", "description": "Background color (hex, e.g. #1E40AF)"}
+                                    }
+                                }
+                            },
+                            "agenda_items": {
+                                "type": "array",
+                                "description": "For visual_type=agenda: list of agenda items",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string", "description": "Agenda item title"},
+                                        "subtitle": {"type": "string", "description": "Optional subtitle"},
+                                        "icon": {"type": "string", "description": "Icon name for this item"}
+                                    }
+                                }
+                            },
+                            "timeline_events": {
+                                "type": "array",
+                                "description": "For visual_type=timeline: list of timeline events",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string", "description": "Event title"},
+                                        "date": {"type": "string", "description": "Event date"},
+                                        "description": {"type": "string", "description": "Optional description"}
+                                    }
+                                }
+                            },
+                            "flow_nodes": {
+                                "type": "array",
+                                "description": "For visual_type=flow: list of flow diagram nodes",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string", "description": "Node label"},
+                                        "sub_label": {"type": "string", "description": "Optional sub-label"},
+                                        "icon": {"type": "string", "description": "Icon name for this node"}
+                                    }
+                                }
+                            },
+                            "flow_connections": {
+                                "type": "array",
+                                "description": "For visual_type=flow: list of [from_index, to_index] connections",
+                                "items": {
+                                    "type": "array",
+                                    "items": {"type": "integer"},
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                }
+                            },
                         }
                     }
                 },
@@ -359,6 +454,11 @@ TOOLS = [
                     "enum": ["widescreen", "standard"],
                     "description": "Slide size (widescreen for 16:9, standard for 4:3)",
                     "default": "widescreen"
+                },
+                "auto_icons": {
+                    "type": "boolean",
+                    "description": "If true, auto-detect and add icons to slides based on content keywords",
+                    "default": False
                 },
                 "session_id": {"type": "string", "description": "Optional session ID"},
                 "metadata": {"type": "object", "description": "Optional presentation metadata (author, company, subject, title, keywords, category, comments)"},

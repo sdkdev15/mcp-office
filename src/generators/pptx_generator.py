@@ -20,9 +20,13 @@ from src.utils.metadata import apply_metadata
 from src.utils.logger import get_logger
 from src.utils.validators import validate_slide_layout, ValidationError
 from src.utils.image_handler import ImageHandler
+from src.utils.icon_library import find_icon_by_keyword
+from src.utils.icon_renderer import IconRenderer
+from src.generators.visual_slide_builder import VisualSlideBuilder
 
 log = get_logger("pptx_generator")
 image_handler = ImageHandler()
+icon_renderer = IconRenderer()
 
 
 def hex_to_rgbcolor(hex_color: str) -> RGBColor:
@@ -50,6 +54,7 @@ class PPTXGenerator:
         slide_size: str = "widescreen",
         metadata: Optional[dict] = None,
         slides: Optional[list[dict]] = None,
+        auto_icons: bool = False,
     ) -> bytes:
         """Create a new PowerPoint presentation.
 
@@ -58,6 +63,7 @@ class PPTXGenerator:
             slide_size: Slide size (widescreen for 16:9, standard for 4:3).
             metadata: Optional document metadata.
             slides: Optional list of slides to add.
+            auto_icons: If True, auto-detect and add icons to slides based on content keywords.
 
         Returns:
             Presentation content as bytes.
@@ -88,6 +94,14 @@ class PPTXGenerator:
                     content=slide_data.get("content"),
                     bullets=slide_data.get("bullets"),
                     images=slide_data.get("images"),
+                    visual_type=slide_data.get("visual_type"),
+                    icon_name=slide_data.get("icon_name"),
+                    auto_icon=slide_data.get("auto_icon", auto_icons),
+                    stat_boxes=slide_data.get("stat_boxes"),
+                    agenda_items=slide_data.get("agenda_items"),
+                    timeline_events=slide_data.get("timeline_events"),
+                    flow_nodes=slide_data.get("flow_nodes"),
+                    flow_connections=slide_data.get("flow_connections"),
                 )
 
         return self._save_presentation()
@@ -99,6 +113,14 @@ class PPTXGenerator:
         content: Optional[str] = None,
         bullets: Optional[list[str]] = None,
         images: Optional[list[dict]] = None,
+        visual_type: Optional[str] = None,
+        icon_name: Optional[str] = None,
+        auto_icon: bool = False,
+        stat_boxes: Optional[list[dict]] = None,
+        agenda_items: Optional[list[dict]] = None,
+        timeline_events: Optional[list[dict]] = None,
+        flow_nodes: Optional[list[dict]] = None,
+        flow_connections: Optional[list[tuple]] = None,
     ) -> int:
         """Add a slide to the presentation.
 
@@ -108,10 +130,33 @@ class PPTXGenerator:
             content: Body content text.
             bullets: List of bullet points.
             images: List of images to add.
+            visual_type: Visual slide type ("cover", "agenda", "exec-summary", "timeline", "flow").
+            icon_name: Explicit icon name to use.
+            auto_icon: If True, auto-detect icon from title/content keywords.
+            stat_boxes: List of stat box data (for exec-summary visual_type).
+            agenda_items: List of agenda item data (for agenda visual_type).
+            timeline_events: List of timeline event data (for timeline visual_type).
+            flow_nodes: List of flow node data (for flow visual_type).
+            flow_connections: List of (from_idx, to_idx) tuples (for flow visual_type).
 
         Returns:
             Index of the added slide.
         """
+        # \u2500\u2500 Visual Slide Types (premium layouts) \u2500\u2500
+        if visual_type:
+            return self._add_visual_slide(
+                visual_type=visual_type,
+                title=title,
+                content=content,
+                bullets=bullets,
+                icon_name=icon_name,
+                stat_boxes=stat_boxes,
+                agenda_items=agenda_items,
+                timeline_events=timeline_events,
+                flow_nodes=flow_nodes,
+                flow_connections=flow_connections,
+            )
+
         layout = validate_slide_layout(layout)
         slide_layout_map = {
             "title": 0,
@@ -202,7 +247,31 @@ class PPTXGenerator:
                 elif bullets:
                     self.add_text_box(slide_idx, "\n".join(bullets), left=1, top=2)
         self._draw_wow_graphics(slide)
-        
+
+        # \u2500\u2500 Auto Icon \u2500\u2500
+        if auto_icon or icon_name:
+            if not icon_name:
+                icon_name = find_icon_by_keyword(title or "") or find_icon_by_keyword(content or "")
+            if icon_name:
+                try:
+                    ico_path = icon_renderer.render(
+                        icon_name=icon_name,
+                        size=48,
+                        color=self.theme.colors.primary,
+                        bg_color=self.theme.colors.primary,
+                        bg_shape="circle",
+                    )
+                    self.add_image(
+                        slide_idx,
+                    ico_path,
+                    left=11.5,
+                    top=0.3,
+                    width=0.6,
+                    height=0.6,
+                    )
+                except Exception as e:
+                    log.warning(f"Failed to add auto icon to slide: {e}")
+
         # Add images
         if images:
             for img in images:
@@ -211,17 +280,121 @@ class PPTXGenerator:
                     if src:
                         cached = image_handler.process_image(src)
                         self.add_image(
-                            slide_idx, 
-                            cached, 
-                            left=img.get("left", 1.0), 
-                            top=img.get("top", 1.0), 
-                            width=img.get("width"), 
+                            slide_idx,
+                            cached,
+                            left=img.get("left", 1.0),
+                            top=img.get("top", 1.0),
+                            width=img.get("width"),
                             height=img.get("height")
                         )
                 except Exception as e:
                     log.warning(f"Failed to add image to slide: {e}")
 
         return slide_idx
+
+    def _add_visual_slide(
+        self,
+        visual_type: str,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        bullets: Optional[list[str]] = None,
+        icon_name: Optional[str] = None,
+        stat_boxes: Optional[list[dict]] = None,
+        agenda_items: Optional[list[dict]] = None,
+        timeline_events: Optional[list[dict]] = None,
+        flow_nodes: Optional[list[dict]] = None,
+        flow_connections: Optional[list[tuple]] = None,
+    ) -> int:
+        """Add a visual slide using VisualSlideBuilder.
+
+        Args:
+            visual_type: One of "cover", "agenda", "exec-summary", "timeline", "flow".
+            title: Slide title.
+            content: Body content.
+            bullets: Bullet points.
+            icon_name: Icon name (auto-detected if None).
+            stat_boxes: Stat box data (for exec-summary).
+            agenda_items: Agenda item data (for agenda).
+            timeline_events: Timeline event data (for timeline).
+            flow_nodes: Flow node data (for flow).
+            flow_connections: Flow connections (for flow).
+
+        Returns:
+            Index of the added slide.
+        """
+        builder = VisualSlideBuilder(self.theme_name)
+
+        try:
+            if visual_type == "cover":
+                builder.build_cover_slide(
+                    pres=self.pres,
+                    title=title or "Presentation",
+                    subtitle=content or "",
+                    icon_name=icon_name,
+                    extra_line=(bullets[0] if bullets else ""),
+                )
+            elif visual_type == "agenda":
+                items = agenda_items or []
+                # If no explicit agenda_items, use bullets as simple items
+                if not items and bullets:
+                    items = [{"title": b} for b in bullets]
+                builder.build_agenda_slide(
+                    pres=self.pres,
+                    title=title or "Agenda",
+                    items=items,
+                )
+            elif visual_type == "exec-summary":
+                boxes = stat_boxes or []
+                # If no explicit stat_boxes, try to parse from content
+                body = content or ""
+                builder.build_exec_summary_slide(
+                    pres=self.pres,
+                    title=title or "Ringkasan Eksekutif",
+                    stat_boxes=boxes,
+                    body_text=body,
+                )
+            elif visual_type == "timeline":
+                events = timeline_events or []
+                if not events and bullets:
+                    events = [{"title": b} for b in bullets]
+                builder.build_timeline_slide(
+                    pres=self.pres,
+                    title=title or "Timeline",
+                    events=events,
+                    horizontal=True,
+                )
+            elif visual_type == "flow":
+                nodes = flow_nodes or []
+                connections = flow_connections or []
+                if not nodes and bullets:
+                    nodes = [{"label": b} for b in bullets]
+                builder.build_flow_slide(
+                    pres=self.pres,
+                    title=title or "Architecture",
+                    nodes=nodes,
+                    connections=connections,
+                )
+            else:
+                log.warning(f"Unknown visual_type '{visual_type}', falling back to title_and_content")
+                # Fallback to regular slide
+                slide_layout = self.pres.slide_layouts[1]
+                slide = self.pres.slides.add_slide(slide_layout)
+                if title and getattr(slide.shapes, "title", None):
+                    slide.shapes.title.text = title
+                slide_idx = len(self.pres.slides) - 1
+                return slide_idx
+
+        except Exception as e:
+            log.error(f"Failed to build visual slide '{visual_type}': {e}")
+            # Fallback to regular slide
+            slide_layout = self.pres.slide_layouts[1]
+            slide = self.pres.slides.add_slide(slide_layout)
+            if title and getattr(slide.shapes, "title", None):
+                slide.shapes.title.text = title
+            if content:
+                self.add_text_box(len(self.pres.slides) - 1, content, left=1, top=2)
+
+        return len(self.pres.slides) - 1
 
     def add_text_box(
         self,

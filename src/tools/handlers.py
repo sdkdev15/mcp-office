@@ -250,6 +250,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
     sections = args.get("sections")
     content_paragraphs = args.get("content_paragraphs")
     tables = args.get("tables")
+    auto_icons = args.get("auto_icons", False)
 
     def _sync_create():
         if template_path:
@@ -260,6 +261,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
                 content_paragraphs=content_paragraphs,
                 tables=tables,
                 metadata=args.get("metadata"),
+                auto_icons=auto_icons,
             )
         else:
             return gen.create_document_with_content(
@@ -270,6 +272,7 @@ async def _docx_create(args: dict) -> list[TextContent]:
                 sections=sections,
                 content_paragraphs=content_paragraphs,
                 tables=tables,
+                auto_icons=auto_icons,
             )
 
     data = await asyncio.to_thread(_sync_create)
@@ -327,6 +330,7 @@ async def _pptx_create(args: dict) -> list[TextContent]:
             if os.path.exists(fallback):
                 template_path = fallback
     slides = args.get("slides")
+    auto_icons = args.get("auto_icons", False)
 
     def _sync_create():
         if template_path:
@@ -340,7 +344,8 @@ async def _pptx_create(args: dict) -> list[TextContent]:
                 title=args.get("title", "Presentation"),
                 slide_size=args.get("slide_size", "widescreen"),
                 metadata=args.get("metadata"),
-                slides=slides
+                slides=slides,
+                auto_icons=auto_icons,
             )
 
     data = await asyncio.to_thread(_sync_create)
