@@ -82,7 +82,7 @@ def register_handlers(
         """Handle tool calls."""
         session_id = _get_session_id(arguments)
 
-        if name not in ("list_themes_tool", "list_files", "get_storage_stats"):
+        if name not in ("list_themes_tool", "list_files", "get_storage_stats", "plan_document"):
             rate_error = _check_rate_limit(session_id)
             if rate_error:
                 return [TextContent(type="text", text=rate_error)]
@@ -107,6 +107,7 @@ def register_handlers(
                 "list_themes_tool": _list_themes,
                 "list_files": _list_files,
                 "get_storage_stats": _get_storage_stats,
+                "plan_document": _plan_document,
             }
             handler = handler_map.get(name)
             if handler is None:
@@ -485,3 +486,20 @@ async def _get_storage_stats() -> list[TextContent]:
         f"- Retention: {stats['retention_hours']} hours"
     )
     return [TextContent(type="text", text=result)]
+
+
+async def _plan_document(args: dict) -> list[TextContent]:
+    """Handle plan_document tool call."""
+    from src.planning.planner import DocumentPlanner
+    import json
+    
+    request = args.get("request", "")
+    doc_type = args.get("doc_type", "auto")
+    
+    if not request:
+        return [TextContent(type="text", text="Error: request parameter is required")]
+    
+    planner = DocumentPlanner()
+    plan = planner.analyze(request=request, doc_type=doc_type)
+    
+    return [TextContent(type="text", text=json.dumps(plan, indent=2))]

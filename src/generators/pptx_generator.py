@@ -25,6 +25,8 @@ from src.utils.icon_renderer import IconRenderer
 from src.generators.visual_slide_builder import VisualSlideBuilder
 from src.visual.gradient_engine import GradientEngine, GradientDef
 from src.visual.shadow_engine import ShadowEngine, ShadowDef
+from src.visual.shapes import NeoShape
+from src.visual.shadow_engine import ShadowEngine, ShadowDef
 
 log = get_logger("pptx_generator")
 image_handler = ImageHandler()

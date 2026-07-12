@@ -756,5 +756,25 @@ TOOLS = [
         name="get_storage_stats",
         description="Get current storage usage statistics.",
         inputSchema={"type": "object", "properties": {}},
+    ),    Tool(
+        name='plan_document',
+        description='MANDATORY: Call this tool FIRST before using pptx_create, excel_create, or docx_create. This tool will: 1. Analyze your document request from natural language 2. Determine the right tool and parameters 3. Recommend theme, layout, and slide structure 4. Provide a ready-to-fill JSON template 5. Warn about constraints and common mistakes. NEVER call a generate tool without calling plan_document first.',
+        inputSchema={
+            'type': 'object',
+            'properties': {
+                'request': {
+                    'type': 'string',
+                    'description': 'Natural language description of the document you want to create',
+                    'minLength': 1,
+                },
+                'doc_type': {
+                    'type': 'string',
+                    'enum': ['auto', 'presentation', 'spreadsheet', 'document'],
+                    'default': 'auto',
+                    'description': 'Document type (auto = let AI decide)'
+                }
+            },
+            'required': ['request']
+        },
     ),
 ]
