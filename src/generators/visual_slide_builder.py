@@ -116,6 +116,8 @@ class VisualSlideBuilder:
         align: str = PP_ALIGN.LEFT,
         font_name: Optional[str] = None,
         italic: bool = False,
+        gradient: Optional[dict] = None,
+        shadow: Optional[dict] = None,
     ):
         """Add a text box with styling."""
         box = slide.shapes.add_textbox(
@@ -133,6 +135,17 @@ class VisualSlideBuilder:
             run.font.color.rgb = RGBColor(*hex_to_rgbcolor_tuple(color))
             if font_name:
                 run.font.name = font_name
+        
+        # Apply gradient to text if specified
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_text_frame(tf, grad)
+        
+        # Apply shadow to text if specified
+        if shadow:
+            shd = ShadowDef(**shadow)
+            for run in p.runs:
+                ShadowEngine.apply_to_text_run(run, shd)
         return box
 
     def _add_multiline_text(
