@@ -13,6 +13,11 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
+from pptx.oxml.ns import qn
+from lxml import etree
+from src.visual.gradient_engine import GradientEngine, GradientDef
+from src.visual.shadow_engine import ShadowEngine, ShadowDef
+from src.utils.auto_size import AutoSizeEngine
 
 from src.styles.themes import get_theme, Theme
 from src.utils.colors import hex_to_rgbcolor_tuple
@@ -818,3 +823,489 @@ class VisualSlideBuilder:
                     font_size=11,
                     color=c.accent,
                 )
+
+    # Section Header Slide (Premium Divider)
+
+    def build_section_header_slide(
+        self,
+        pres: Presentation,
+        title: str,
+        section_number: Optional[int] = None,
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        if section_number:
+            num_size = 6.0
+            num_x = (SLIDE_W - num_size) / 2
+            num_y = 1.5
+            num_circle = self._add_rounded_rect(
+                slide, num_x, num_y, num_size, num_size,
+                fill="none",
+            )
+            num_circle.fill.background()
+            num_circle.line.fill.background()
+
+            tf = num_circle.text_frame
+            tf.word_wrap = False
+            p = tf.paragraphs[0]
+            p.text = f"{section_number:02d}"
+            for run in p.runs:
+                run.font.size = Pt(120)
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.accent))
+                run.font.name = self.theme.fonts.heading
+
+        line_w = 3.0
+        line_x = (SLIDE_W - line_w) / 2
+        line_y = 6.8 if section_number else 3.8
+        self._add_rect(slide, line_x, line_y, line_w, 0.06, c.accent, send_back=2)
+
+        title_top = 4.5 if section_number else 2.5
+        self._add_text(
+            slide, title,
+            x=1.5, y=title_top, w=10.33, h=1.5,
+            font_size=36, bold=True,
+            color="#FFFFFF",
+            align=PP_ALIGN.CENTER,
+            font_name=self.theme.fonts.heading,
+        )
+
+    # Quote Slide
+
+    def build_quote_slide(
+        self,
+        pres: Presentation,
+        quote_text: str,
+        attribution: str = "",
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        quote_mark = slide.shapes.add_textbox(
+            Inches(0.5), Inches(0.8), Inches(1.5), Inches(2.0),
+        )
+        tqf = quote_mark.text_frame
+        tp = tqf.paragraphs[0]
+        tp.text = '"'
+        for run in tp.runs:
+            run.font.size = Pt(120)
+            run.font.color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.accent))
+            run.font.name = self.theme.fonts.heading
+
+        self._add_text(
+            slide, quote_text,
+            x=2.5, y=1.5, w=9.5, h=3.0,
+            font_size=22, italic=True,
+            color="#FFFFFF",
+            align=PP_ALIGN.LEFT,
+            font_name=self.theme.fonts.body,
+        )
+
+        if attribution:
+            self._add_text(
+                slide, attribution,
+                x=2.5, y=4.8, w=9.5, h=0.6,
+                font_size=14, bold=True,
+                color=c.accent,
+                align=PP_ALIGN.LEFT,
+                font_name=self.theme.fonts.heading,
+            )
+
+    # Comparison Slide
+
+    def build_comparison_slide(
+        self,
+        pres: Presentation,
+        title: str = "Comparison",
+        left_items: Optional[list[dict]] = None,
+        right_items: Optional[list[dict]] = None,
+        left_label: str = "Option A",
+        right_label: str = "Option B",
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        self._add_text(
+            slide, title,
+            x=0.8, y=0.3, w=11, h=0.8,
+            font_size=32, bold=True,
+            color="#FFFFFF",
+            align=PP_ALIGN.CENTER,
+            font_name=self.theme.fonts.heading,
+        )
+        self._add_rect(slide, 6.64, 1.3, 0.06, 5.5, c.accent, send_back=1)
+
+        if left_items:
+            self._add_text(
+                slide, left_label,
+                x=0.8, y=1.5, w=5.5, h=0.6,
+                font_size=18, bold=True,
+                color=c.accent,
+                align=PP_ALIGN.CENTER,
+                font_name=self.theme.fonts.heading,
+            )
+            ly = 2.2
+            for item in left_items:
+                label = item.get("label", "") or ""
+                value = item.get("value", "") or ""
+                txt_color = c.success if item.get("positive") else (c.error if item.get("negative") else c.text_light)
+                self._add_text(slide, f"– {label}", x=1.0, y=ly, w=5.3, h=0.5, font_size=14, color="#FFFFFF", align=PP_ALIGN.LEFT)
+                if value:
+                    self._add_text(slide, str(value), x=1.0, y=ly + 0.35, w=5.3, h=0.3, font_size=11, color=txt_color, align=PP_ALIGN.LEFT)
+                ly += 0.8
+
+        if right_items:
+            self._add_text(
+                slide, right_label,
+                x=6.9, y=1.5, w=5.5, h=0.6,
+                font_size=18, bold=True,
+                color=c.accent,
+                align=PP_ALIGN.CENTER,
+                font_name=self.theme.fonts.heading,
+            )
+            ry = 2.2
+            for item in right_items:
+                label = item.get("label", "") or ""
+                value = item.get("value", "") or ""
+                txt_color = c.success if item.get("positive") else (c.error if item.get("negative") else c.text_light)
+                self._add_text(slide, f"– {label}", x=7.1, y=ry, w=5.3, h=0.5, font_size=14, color="#FFFFFF", align=PP_ALIGN.LEFT)
+                if value:
+                    self._add_text(slide, str(value), x=7.1, y=ry + 0.35, w=5.3, h=0.3, font_size=11, color=txt_color, align=PP_ALIGN.LEFT)
+                ry += 0.8
+
+    # Roadmap Slide
+
+    def build_roadmap_slide(
+        self,
+        pres: Presentation,
+        title: str = "Roadmap",
+        milestones: Optional[list[dict]] = None,
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        self._add_text(
+            slide, title,
+            x=0.8, y=0.3, w=11, h=0.7,
+            font_size=32, bold=True,
+            color="#FFFFFF",
+            align=PP_ALIGN.CENTER,
+            font_name=self.theme.fonts.heading,
+        )
+
+        if not milestones:
+            return
+
+        num = len(milestones)
+        line_y = 4.5
+        line_left = 1.0
+        line_right = SLIDE_W - 1.0
+        self._add_rect(slide, line_left, line_y, line_right - line_left, 0.06, c.accent, send_back=1)
+
+        phase_colors = [c.primary, c.accent, c.success, c.warning, e.error]
+        card_w = (line_right - line_left) / num - 0.15
+        gap = 0.15
+
+        for i, ms in enumerate(milestones):
+            x = line_left + i * (card_w + gap) + gap / 2
+            color = phase_colors[i % len(phase_colors)]
+
+            dot = slide.shapes.add_shape(
+                MSO_SHAPE.OVAL,
+                Inches(x + card_w / 2 - 0.12), Inches(line_y - 0.12),
+                Inches(0.24), Inches(0.24),
+            )
+            dot.fill.solid()
+            dot.fill.fore_color.rgb = RGBColor(*hex_to_rgbcolor_tuple(color))
+            dot.line.fill.background()
+
+            self._add_rounded_rect(slide, x, 1.3, card_w, 3.1, fill="#1E293B")
+
+            self._add_text(slide, str(ms.get("phase", f"Phase {i+1}")),
+                x=x, y=1.4, w=card_w, h=0.4, font_size=12, bold=True,
+                color=color, align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+            self._add_text(slide, str(ms.get("title", "")),
+                x=x, y=1.9, w=card_w, h=0.6, font_size=14, bold=True,
+                color="#FFFFFF", align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+            date_text = ms.get("date", "")
+            if date_text:
+                self._add_text(slide, str(date_text),
+                    x=x, y=2.5, w=card_w, h=0.4, font_size=11,
+                    color=c.accent, align=PP_ALIGN.CENTER)
+
+            desc = ms.get("description", "")
+            if desc:
+                self._add_text(slide, str(desc),
+                    x=x + 0.1, y=3.0, w=card_w - 0.2, h=1.2, font_size=10,
+                    color=self._text_light_on_dark(), align=PP_ALIGN.CENTER)
+
+    # Team Slide
+
+    def build_team_slide(
+        self,
+        pres: Presentation,
+        title: str = "Team",
+        members: Optional[list[dict]] = None,
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        self._add_text(slide, title, x=0.8, y=0.3, w=11, h=0.7,
+            font_size=32, bold=True, color="#FFFFFF",
+            align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+        if not members:
+            return
+
+        num = min(len(members), 5)
+        cols = min(num, 3)
+        margin = 0.8
+        total_content_w = SLIDEE_ - margin * 2
+        card_w = (total_content_w - (cols - 1) * 0.25) / cols
+        card_h = 4.5
+        start_y = 1.4
+
+        for i in range(num):
+            col = i % cols
+            row = i // cols
+            x = margin + col * (card_w + 0.25)
+            y = start_y + row * (card_h + 0.4)
+
+            self._add_rounded_rect(slide, x, y, card_w, card_h, fill="#1E293B")
+
+            avatar_size = 1.2
+            avatar_x = x + (card_w - avatar_size) / 2
+            avatar_y = y + 0.5
+            avatar = slide.shapes.add_shape(
+                MSO_SHAPE.OVAL, Inches(avatar_x), Inches(avatar_y),
+                Inches(avatar_size), Inches(avatar_size),
+            )
+            avatar.fill.solid()
+            avatar.fill.fore_color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.primary))
+            avatar.line.fill.background()
+
+            name = str(members[i].get("name", ""))
+            initials = ""
+            if name:
+                parts = name.split()
+                initials = (parts[0][0] + parts[-1][0]).upper() if len(parts) >= 2 else parts[0][0].upper()
+            if initials:
+                avatar.text_frame.paragraphs[0].text = initials
+                for run in avatar.text_frame.paragraphs[0].runs:
+                    run.font.size = Pt(20)
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(*hex_to_rgbcolor_tuple("#FFFFFF"))
+                    run.font.name = self.theme.fonts.heading
+
+            self._add_text(slide, name, x=x, y=y + 1.9, w=card_w, h=0.5,
+                font_size=16, bold=True, color="#FFFFFF",
+                align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+            role = str(members[i].get("role", ""))
+            if role:
+                self._add_text(slide, role, x=x, y=y + 2.4, w=card_w, h=0.5,
+                    font_size=12, color=c.accent, align=PP_ALIGN.CENTER)
+
+    # Gallery Slide (Image Grid)
+
+    def build_gallery_slide(
+        self,
+        pres: Presentation,
+        title: str = "Gallery",
+        images: Optional[list[dict]] = None,
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        self._add_text(slide, title, x=0.8, y=0.3, w=11, h=0.7,
+            font_size=32, bold=True, color="#FFFFFF",
+            align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+        if not images:
+            return
+
+        num = min(len(images), 6)
+        cols = min(num, 3)
+        rows = (num + cols - 1) // cols
+        margin = 0.8
+        total_content_w = SLIDE_W - margin * 2
+        img_w = (total_content_w - (cols - 1) * 0.2) / cols
+        img_h = (SLIDE_H - 2.2 - (rows - 1) * 0.3) / rows
+        if img_h < 1.5:
+            cols = min(num, 2)
+            rows = (num + cols - 1) // cols
+            img_w = (total_content_w - (cols - 1) * 0.3) / cols
+            img_h = (SLIDE_H - 2.2 - (rows - 1) * 0.3) / rows
+
+        for i in range(num):
+            col = i % cols
+            row = i // cols
+            x = margin + col * (img_w + 0.2) + 0.1
+            y = 1.4 + row * (img_h + 0.3)
+
+            self._add_rounded_rect(slide, x, y, img_wg, img_h,
+                fill="#1E293B", border=c.border, border_width=1)
+
+            caption = images[i].get("caption", "") or images[i].get("title", "")
+            if caption:
+                self._add_text(slide, str(caption),
+                    x=x, y=y + img_h - 0.5, w=img_w, h=0.4,
+                    font_size=10, color="#FFFFFF", align=PP_ALIGN.CENTER)
+
+    # CTA Slide (Call to Action)
+
+    def build_cta_slide(
+        self,
+        pres: Presentation,
+        title: str = "Questions?",
+        content: str = "",
+        subtitle: str = "",
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        stripe = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE,
+            0, Inches(6.5), Inches(13.33), Inches(1.0),
+        )
+        stripe.fill.solid()
+        stripe.fill.fore_color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.accent))
+        stripe.line.fill.background()
+
+        self._add_text(slide, title, x=1.5, y=2.5, w=10.33, h=1.5,
+            font_size=44, bold=True, color="#FFFFFF",
+            align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+        display_text = content or subtitle
+        if display_text:
+            self._add_text(slide, display_text, x=2.0, y=4.2, w=9.33, h=1.5,
+                font_size=18, color=self._text_light_on_dark(),
+                align=PP_ALIGN.CENTER, font_name=self.theme.fonts.body)
+
+        self._add_text(slide, "Thank you for your attention", x=1.5, y=6.7, w=10.33, h=0.5,
+            font_size=14, color="#FFFFFF", align=PP_ALIGN.CENTER, font_name=self.theme.fonts.body)
+
+    # Table Slide (Premium Styled)
+
+    def build_table_slide(
+        self,
+        pres: Presentation,
+        title: str = "Data Table",
+        headers: Optional[list[str]] = None,
+        rows: Optional[list[list]] = None,
+        gradient: Optional[dict] = None,
+    ) -> None:
+        c = self.theme.colors
+        slide_layout = pres.slide_layouts[6]
+        slide = pres.slides.add_slide(slide_layout)
+
+        if gradient:
+            grad = GradientDef(**gradient)
+            GradientEngine.apply_to_slide_bg(slide, grad)
+        else:
+            self._add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, c.header_bg, send_back=0)
+
+        self._add_text(slide, title, x=0.8, y=0.3, w=11, h=0.7,
+            font_size=28, bold=True, color="#FFFFFF",
+            align=PP_ALIGN.LEFT, font_name=self.theme.fonts.heading)
+
+        if not headers or not rows:
+            return
+
+        num_cols = len(headers)
+        num_rows = len(rows)
+        table_margin_left = 1.0
+        table_width = SLIDE_W - 2.0
+        header_h = 0.5
+        row_h = min(0.35, (SLIDE_H | 2.5 - header_h) / max(num_rows, 1))
+        cell_w = table_width / num_cols
+        table_y = 1.2
+
+        for col_i, header in enumerate(headers):
+            x = table_margin_left + col_i * cell_w
+            cell = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                Inches(x), Inches(table_y), Inches(cell_w), Inches(header_h))
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.primary))
+            cell.line.color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.border))
+            cell.line.width = Pt(1)
+            self._add_text(slide, str(header),
+                x=x + 0.05, y=table_y, w=cell_w - 0.1, h=header_h,
+                font_size=12, bold=True, color="#FFFFFF",
+                align=PP_ALIGN.CENTER, font_name=self.theme.fonts.heading)
+
+        for row_i, row_data in enumerate(rows):
+            row_y = table_y + header_h + row_i * row_h
+            is_alt = row_i % 2 == 1
+            row_bg = c.table_alt_row if is_alt else c.header_bg
+
+            for col_i in range(num_cols):
+                x = table_margin_left + col_i * cell_w
+                cell = slide.shapes.add_shape(MSO.SHAPE.RECTANGLE,
+                    Inches(x), Inches(row_y), Inches(cell_w), Inches(row_h))
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(*hex_to_rgbcolor_tuple(row_bg))
+                cell.line.color.rgb = RGBColor(*hex_to_rgbcolor_tuple(c.border))
+                cell.line.width = Pt(0.5)
+                val = str(row_data[col_i]) if col_i < len(row_data) else ""
+                self._add_text(slide, val, x=x + 0.05, y=row_y, w=cell_w - 0.1, h=row_h,
+                    font_size=10, color="#FFFFFF", align=PP_ALIGN.CENTER)
