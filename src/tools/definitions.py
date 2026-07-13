@@ -777,4 +777,26 @@ TOOLS = [
             'required': ['request']
         },
     ),
+    Tool(
+        name='pptx_preview_theme',
+        description='Preview all available themes in a single presentation for comparison.',
+        inputSchema={
+            'type': 'object',
+            'properties': {
+                'filename': {
+                    'type': 'string',
+                    'description': 'Output filename (e.g., "theme_preview.pptx")'
+                }
+            },
+            'required': ['filename']
+        },
+    ),
+    Tool(
+        name='pptx_get_fonts',
+        description='List available fonts on the system that can be used in presentations.',
+        inputSchema={
+            'type': 'object',
+            'properties': {}
+        },
+    ),
 ]
